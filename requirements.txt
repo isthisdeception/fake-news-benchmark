@@ -43,7 +43,8 @@ sentence-transformers>=2.7
 statsmodels>=0.14
 scikit-posthocs>=0.9
 
-# --- Data / numerics ----------------------------------------------------------
+# --- Config / data / numerics -------------------------------------------------
+pydantic>=2.0        # typed config schema validation (fnb.config)
 pandas>=2.0
 numpy>=1.24
 scipy>=1.11
