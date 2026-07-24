@@ -46,12 +46,22 @@ Environment = "./ENVIRONMENT.md"
 Guide = "./MASTER_IMPLEMENTATION_GUIDE.md"
 
 [project.optional-dependencies]
-# Developer/CI extras (linting, formatting, tests) already ship in requirements.txt,
-# but are grouped here so `pip install -e '.[dev]'` reads as intent.
+# Heavier / conflict-prone libraries needed only in later milestones. Installed
+# per-stage so the base `pip install -e .` never disturbs Kaggle's core stack.
+# Floors ('>=') keep whatever Kaggle already provides and only add what's missing.
+llm = [
+    "peft>=0.11",          # QLoRA adapters (M4/M5)
+    "bitsandbytes>=0.43",  # 4-bit NF4 quantization (M4/M5)
+]
+adversarial = [
+    "textattack>=0.3.10",  # label-preserving attack recipes (M5, EXP-C1)
+]
+# Developer/CI tooling. Kaggle usually ships these already; floors avoid
+# downgrading Kaggle's versions (e.g. a newer ruff required by gradio).
 dev = [
-    "pytest==8.3.2",
-    "ruff==0.6.2",
-    "black==24.8.0",
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "black>=24.0",
 ]
 
 # --- Console entry points ----------------------------------------------------

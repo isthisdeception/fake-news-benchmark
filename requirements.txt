@@ -1,58 +1,55 @@
 # =============================================================================
-# fnb — Fake News Benchmark: pinned runtime dependencies
+# fnb — Fake News Benchmark: runtime dependencies (Kaggle-friendly floors)
 # -----------------------------------------------------------------------------
-# These are the reproducible, pinned ("==") dependencies for the project.
-# `pyproject.toml` reads this file dynamically, so `pip install -e .` installs
-# exactly these versions (single source of truth).
+# Execution target: KAGGLE (single NVIDIA T4). The Kaggle GPU image already ships
+# most of this scientific stack, often at NEWER versions than any fixed pin.
 #
-# Execution target: KAGGLE (single NVIDIA T4). Many of these libraries are
-# pre-installed in the Kaggle GPU image; on Kaggle, `pip install -e .` will keep
-# already-satisfied pins and only add what is missing. If a pin conflicts with
-# the Kaggle CUDA build of torch, prefer the Kaggle-provided torch and record
-# the divergence in ENVIRONMENT.md / requirements.lock.txt.
+# Therefore we use minimum-version FLOORS (">=") here, NOT exact ("==") pins:
+#   * ">=" is satisfied by Kaggle's newer builds, so `pip install -e .` leaves
+#     Kaggle's torch/numpy/scikit-learn/etc. UNTOUCHED (no downgrades, no
+#     torch/torchvision/torchaudio mismatch, no numpy 1.x vs 2.x breakage).
+#   * pip only *adds* the packages Kaggle is missing, choosing versions
+#     compatible with what's already installed.
 #
-# A full `pip freeze` capture belongs in requirements.lock.txt (produced on the
-# actual T4 runtime), which is the ultimate reproducibility record.
+# Reproducibility is captured AFTER install by freezing the resolved environment
+# on the actual T4 runtime into requirements.lock.txt (`pip freeze`). On a fixed
+# Kaggle image that lock file — not these floors — is the exact reproducible
+# record (see ENVIRONMENT.md).
+#
+# Heavier / conflict-prone libraries needed only in later milestones are NOT
+# installed at base. They live as optional extras in pyproject.toml and are
+# installed per-stage:
+#   * QLoRA (M4/M5):      pip install -e '.[llm]'          # peft, bitsandbytes
+#   * Adversarial (M5):   pip install -e '.[adversarial]'  # textattack
+#   * Dev tooling:        pip install -e '.[dev]'          # pytest, ruff, black
 # =============================================================================
 
-# --- Deep learning core -------------------------------------------------------
-torch==2.4.0
-transformers==4.44.2
-tokenizers==0.19.1
-datasets==2.21.0
-accelerate==0.33.0
-
-# --- Parameter-efficient / quantized fine-tuning (QLoRA) ----------------------
-peft==0.12.0
-bitsandbytes==0.43.3
+# --- Deep learning core (Kaggle-provided; floors prevent downgrades) ----------
+torch>=2.1
+transformers>=4.40
+tokenizers>=0.19
+datasets>=2.18
+accelerate>=0.30
 
 # --- Classical ML -------------------------------------------------------------
-scikit-learn==1.5.1
-lightgbm==4.5.0
+scikit-learn>=1.3
+lightgbm>=4.0
 
 # --- NLP tooling --------------------------------------------------------------
-nltk==3.9.1
-sentence-transformers==3.0.1
-
-# --- Adversarial robustness ---------------------------------------------------
-textattack==0.3.10
+nltk>=3.8
+sentence-transformers>=2.7
 
 # --- Statistics ---------------------------------------------------------------
-statsmodels==0.14.2
-scikit-posthocs==0.9.0
+statsmodels>=0.14
+scikit-posthocs>=0.9
 
 # --- Data / numerics ----------------------------------------------------------
-pandas==2.2.2
-numpy==1.26.4
-scipy==1.13.1
-pyarrow==17.0.0
-pyyaml==6.0.2
+pandas>=2.0
+numpy>=1.24
+scipy>=1.11
+pyarrow>=14.0
+pyyaml>=6.0
 
 # --- Plotting & interpretability ----------------------------------------------
-matplotlib==3.9.2
-captum==0.7.0
-
-# --- Developer tooling (tests, lint, format) ----------------------------------
-pytest==8.3.2
-ruff==0.6.2
-black==24.8.0
+matplotlib>=3.7
+captum>=0.7

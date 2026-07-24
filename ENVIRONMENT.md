@@ -13,13 +13,16 @@ pushed to GitHub, and executed on Kaggle (see `README.md` §2 and `KAGGLE_WORKFL
 ## 1. Python & pinned libraries
 
 - **Python:** requires `>=3.10` (Kaggle image Python: _TBD_ — record `python --version`).
-- **Pinned dependencies:** the authoritative pinned set is [`requirements.txt`](./requirements.txt)
-  (`==` pins). `pyproject.toml` consumes it via dynamic metadata, so `pip install -e .`
-  reproduces exactly these versions.
-- **Full lock:** [`requirements.lock.txt`](./requirements.lock.txt) (_TBD placeholder_) should
-  hold a complete `pip freeze` captured **on the Kaggle T4 runtime** after `pip install -e .`.
-  That freeze is the ultimate reproducibility artifact (it also captures transitive deps and
-  the Kaggle-provided CUDA build of torch).
+- **Runtime dependencies:** declared in [`requirements.txt`](./requirements.txt) using
+  minimum-version **floors** (`>=`), not exact pins. `pyproject.toml` consumes them via dynamic
+  metadata. On Kaggle this deliberately keeps the image's (newer) torch/numpy/etc. and only adds
+  missing packages — it never downgrades the Kaggle CUDA stack. Heavier, later-milestone libs
+  (peft, bitsandbytes, textattack) are optional extras installed per-stage (`.[llm]`,
+  `.[adversarial]`).
+- **Full lock (the real reproducibility record):** [`requirements.lock.txt`](./requirements.lock.txt)
+  (_TBD placeholder_) must hold a complete `pip freeze` captured **on the Kaggle T4 runtime**
+  after install. On a fixed Kaggle image, that freeze — not the floors above — is the exact,
+  reproducible version set (transitive deps + the Kaggle CUDA build of torch included).
 
 Key pinned libraries (see `requirements.txt` for the complete, versioned list):
 

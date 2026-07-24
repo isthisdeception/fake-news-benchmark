@@ -40,9 +40,20 @@ FakeNewsBenchmark/
 └── ENVIRONMENT.md      # pinned libs, CUDA, Kaggle T4 hardware
 ```
 
-The package is installed **editable** with `pip install -e .`. Dependency versions are
-pinned in `requirements.txt` and consumed by `pyproject.toml` via dynamic metadata, so the
-single install command reproduces the pinned environment.
+The package is installed **editable** with `pip install -e .`. Runtime dependencies live in
+`requirements.txt` (consumed by `pyproject.toml` via dynamic metadata) and use **minimum-version
+floors (`>=`)**, so on Kaggle the install keeps the image's newer torch/numpy/etc. and only adds
+what's missing — it never downgrades Kaggle's CUDA stack. Heavier, later-milestone libraries are
+optional extras installed per-stage:
+
+| Extra | Command | When |
+|---|---|---|
+| QLoRA | `pip install -e '.[llm]'` | M4/M5 (peft, bitsandbytes) |
+| Adversarial | `pip install -e '.[adversarial]'` | M5 / EXP-C1 (textattack) |
+| Dev tooling | `pip install -e '.[dev]'` | local lint/format/test |
+
+The exact reproducible environment is captured post-install via `pip freeze` into
+`requirements.lock.txt` on the fixed Kaggle image (see `ENVIRONMENT.md`).
 
 Console entry points (installed by `pip install -e .`) mirror the scripts:
 
@@ -155,9 +166,9 @@ pytest -q                    # 0 tests until they land in Milestone 1+
 ruff check . && black --check .
 ```
 
-> The pinned `requirements.txt` includes GPU libraries (torch, bitsandbytes, …) that are
-> heavy or CUDA-specific. For pure authoring you generally do not need a full local install;
-> rely on Kaggle for execution and reproducibility. See `ENVIRONMENT.md`.
+> `requirements.txt` references GPU libraries (torch, …) that are heavy or CUDA-specific. For
+> pure authoring you generally do not need a full local install; rely on Kaggle for execution
+> and reproducibility. See `ENVIRONMENT.md`.
 
 ---
 
