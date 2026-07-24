@@ -1,0 +1,44 @@
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# --- Virtual environments ----------------------------------------------------
+.venv/
+venv/
+.verify_venv/
+env/
+
+# --- Tooling caches ----------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# --- Heavy / non-reproducible outputs (kept on Kaggle, never in git) ---------
+# Raw dataset bytes live only in /kaggle/input/; processed parquet + checkpoints
+# are persisted as Kaggle output datasets. Only the small placeholders/results
+# and hashes below are tracked.
+data/raw/*
+data/processed/*
+artifacts/*
+*.parquet
+*.pkl
+*.pt
+*.bin
+*.safetensors
+
+# Keep folder placeholders and the small, committable artifacts.
+!**/.gitkeep
+!data/SNAPSHOT_HASHES.txt
+!data/splits/*.idx
+!results/**
+!logs/*.log
+
+# --- OS / editor -------------------------------------------------------------
+.DS_Store
+Thumbs.db

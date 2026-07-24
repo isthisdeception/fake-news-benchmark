@@ -1,0 +1,3 @@
+# Placeholder. Raw dataset bytes are NEVER committed here.
+# On Kaggle they live read-only under /kaggle/input/<slug>/ (attached datasets).
+# Only lightweight artifacts (SNAPSHOT_HASHES.txt, split indices) enter the repo.

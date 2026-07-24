@@ -1,0 +1,2 @@
+# Placeholder. Structured per-run logs ({run_id}.log). Small text logs may be
+# committed for provenance; regenerated on each Kaggle run.

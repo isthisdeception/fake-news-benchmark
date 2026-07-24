@@ -1,0 +1,2 @@
+# Placeholder. Checkpoints, tfidf_{seed}.pkl, QLoRA adapters, metadata.json.
+# Large binaries stay on Kaggle as output datasets; do not commit them to git.

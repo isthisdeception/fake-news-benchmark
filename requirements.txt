@@ -1,0 +1,58 @@
+# =============================================================================
+# fnb — Fake News Benchmark: pinned runtime dependencies
+# -----------------------------------------------------------------------------
+# These are the reproducible, pinned ("==") dependencies for the project.
+# `pyproject.toml` reads this file dynamically, so `pip install -e .` installs
+# exactly these versions (single source of truth).
+#
+# Execution target: KAGGLE (single NVIDIA T4). Many of these libraries are
+# pre-installed in the Kaggle GPU image; on Kaggle, `pip install -e .` will keep
+# already-satisfied pins and only add what is missing. If a pin conflicts with
+# the Kaggle CUDA build of torch, prefer the Kaggle-provided torch and record
+# the divergence in ENVIRONMENT.md / requirements.lock.txt.
+#
+# A full `pip freeze` capture belongs in requirements.lock.txt (produced on the
+# actual T4 runtime), which is the ultimate reproducibility record.
+# =============================================================================
+
+# --- Deep learning core -------------------------------------------------------
+torch==2.4.0
+transformers==4.44.2
+tokenizers==0.19.1
+datasets==2.21.0
+accelerate==0.33.0
+
+# --- Parameter-efficient / quantized fine-tuning (QLoRA) ----------------------
+peft==0.12.0
+bitsandbytes==0.43.3
+
+# --- Classical ML -------------------------------------------------------------
+scikit-learn==1.5.1
+lightgbm==4.5.0
+
+# --- NLP tooling --------------------------------------------------------------
+nltk==3.9.1
+sentence-transformers==3.0.1
+
+# --- Adversarial robustness ---------------------------------------------------
+textattack==0.3.10
+
+# --- Statistics ---------------------------------------------------------------
+statsmodels==0.14.2
+scikit-posthocs==0.9.0
+
+# --- Data / numerics ----------------------------------------------------------
+pandas==2.2.2
+numpy==1.26.4
+scipy==1.13.1
+pyarrow==17.0.0
+pyyaml==6.0.2
+
+# --- Plotting & interpretability ----------------------------------------------
+matplotlib==3.9.2
+captum==0.7.0
+
+# --- Developer tooling (tests, lint, format) ----------------------------------
+pytest==8.3.2
+ruff==0.6.2
+black==24.8.0

@@ -1,0 +1,100 @@
+# =============================================================================
+# fnb — Fake News Benchmark
+# Packaging + tool configuration.
+#
+# Layout : src-layout (the importable package lives at `src/fnb`).
+# Install : `pip install -e .`  (editable; the standard Kaggle install command).
+# Deps    : pinned in requirements.txt and consumed here via dynamic metadata,
+#           so requirements.txt stays the single source of truth for versions.
+# =============================================================================
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fnb"
+version = "0.1.0"
+description = "Fake News Benchmark: a reproducible cross-dataset fake-news detection benchmark (classical, encoder, and QLoRA LLM models)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "FakeNewsBenchmark authors" }]
+keywords = [
+    "fake-news",
+    "misinformation",
+    "nlp",
+    "benchmark",
+    "transformers",
+    "qlora",
+    "reproducibility",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Operating System :: OS Independent",
+]
+# Runtime dependencies are pinned in requirements.txt (see [tool.setuptools.dynamic]).
+dynamic = ["dependencies"]
+
+[project.urls]
+Documentation = "./README.md"
+Environment = "./ENVIRONMENT.md"
+Guide = "./MASTER_IMPLEMENTATION_GUIDE.md"
+
+[project.optional-dependencies]
+# Developer/CI extras (linting, formatting, tests) already ship in requirements.txt,
+# but are grouped here so `pip install -e '.[dev]'` reads as intent.
+dev = [
+    "pytest==8.3.2",
+    "ruff==0.6.2",
+    "black==24.8.0",
+]
+
+# --- Console entry points ----------------------------------------------------
+# Thin CLIs living in scripts/ (no research logic; orchestration only). These
+# mirror the direct `python scripts/<name>.py` invocations used on Kaggle.
+[project.scripts]
+fnb-data-pipeline = "scripts.run_data_pipeline:main"
+fnb-run-experiment = "scripts.run_experiment:main"
+fnb-build-paper = "scripts.build_paper_outputs:main"
+
+# --- setuptools --------------------------------------------------------------
+# src-layout: the package `fnb` is discovered under src/; the orchestration
+# `scripts` package is discovered at the repo root so its entry points install.
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["fnb*", "scripts*"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+# =============================================================================
+# Tooling configuration
+# =============================================================================
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+# Sensible, non-intrusive defaults; expand as the codebase grows.
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["fnb"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra"

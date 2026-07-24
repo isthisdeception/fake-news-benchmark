@@ -1,0 +1,2 @@
+# Placeholder. Processed *.parquet files are produced under /kaggle/working/ and
+# persisted as a Kaggle output dataset. They are too large to commit to git.
