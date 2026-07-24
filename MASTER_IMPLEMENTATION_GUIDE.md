@@ -21,6 +21,45 @@
 
 ---
 
+## Execution Model (Cursor authoring + Kaggle execution) — READ FIRST
+
+This project uses a **two-environment split**. It governs every "run" and "verify" instruction
+in this manual.
+
+- **Cursor (authoring only):** used to GENERATE and edit code, configs, and docs. Code is NOT
+  executed for real here. After each step's prompt produces code, commit it and push to a Git
+  remote (e.g., GitHub).
+- **Kaggle (execution only):** the single **NVIDIA T4 (16 GB)** notebook environment is where ALL
+  code actually runs — data pipeline, training, evaluation, tests, and figure generation. This is
+  consistent with `final_protocol.md` §14 (efficiency/timing pinned to a fixed Kaggle T4).
+- **You (the loop):** run cells on Kaggle, then copy the produced outputs (CSV contents, logs,
+  test results, verification reports) back into this Cursor chat so the next task can proceed.
+
+**Concrete Kaggle conventions used throughout this guide:**
+- **Getting the code onto Kaggle:** in the notebook's first cell, `git clone` the repo (or add it
+  as a Kaggle *Utility Script*/*Dataset*), then `pip install -e .`. Enable "Internet" in notebook
+  settings for `pip`/Hugging Face downloads.
+- **Datasets:** DS1–DS5 are attached via **Add Data → Kaggle Datasets** and read from
+  `/kaggle/input/<dataset-slug>/` (READ-ONLY). Never download to a local machine. Snapshot hashing
+  (EXP-P0) is computed inside Kaggle over the attached `/kaggle/input/` files, and the recorded
+  hash pins the exact Kaggle dataset version used.
+- **Outputs:** all artifacts are written under `/kaggle/working/` (writable). At session end, save
+  `/kaggle/working/` as a **versioned notebook output** or a new **Kaggle Dataset** so results,
+  checkpoints, and adapters persist (Kaggle sessions are ephemeral). The next experiment attaches
+  the previous output as an input dataset to resume.
+- **Session/quota limits:** Kaggle sessions are time-boxed (≈9–12 h) with a weekly GPU quota. The
+  ≤120 T4 GPU-h budget (protocol §1) is therefore spread across **multiple Kaggle sessions**; each
+  experiment (EXP-*) is designed to run within one session and to persist its outputs so the run is
+  resumable. Long sweeps (e.g., EXP-1's 5 encoders × 5 seeds) are split across sessions per model/seed.
+- **Wherever this manual says "run … locally" or `pytest …` / `python scripts/…`,** it means "run
+  that command in a Kaggle notebook cell and paste the output back into Cursor." Unit tests
+  (`pytest`) run in a lightweight CPU Kaggle session; GPU experiments run in a T4 session.
+- **`notebooks/kaggle_runner.ipynb`** is the thin wrapper that (1) clones + installs the package,
+  (2) attaches input datasets, (3) dispatches a chosen stage/experiment via `scripts/`, and
+  (4) saves `/kaggle/working/` outputs. Each milestone extends it with the cells for that milestone.
+
+---
+
 ## Table of Contents
 
 1. Project Goal
@@ -203,8 +242,11 @@ FakeNewsBenchmark/
 - `configs/` — the ONLY place frozen constants live in machine-readable form; every module
   reads from here so no value is ever hard-coded (protocol §0). Editing a frozen value here
   is forbidden without a protocol version bump.
-- `data/` — immutable raw snapshots (`raw/`), derived datasets (`processed/`), committed
-  split indices (`splits/`), and the content-hash ledger. Content is reproducible.
+- `data/` — on Kaggle, raw bytes live in `/kaggle/input/` (attached datasets) and are NOT copied
+  into the repo (`data/raw/.gitkeep` is a placeholder). The repo commits only lightweight,
+  reproducible artifacts: `SNAPSHOT_HASHES.txt` (content-hash ledger + Kaggle slug/version
+  manifest) and split indices (`splits/*.idx`). Large `processed/*.parquet` are produced under
+  `/kaggle/working/` and persisted as a Kaggle output dataset (not committed to git).
 - `src/fnb/` — the installable library, split by responsibility: `config`, `utils`,
   `data`, `models`, `training`, `evaluation`, `adversarial`, `analysis`, `experiments`.
 - `scripts/` — argument-parsed entry points; contain no research logic, only orchestration.
@@ -254,16 +296,20 @@ Time estimates assume one graduate student; GPU time is separate from coding tim
   `__init__.py` files, empty `results/`, `artifacts/`, `logs/`, `data/{raw,processed,splits}/`
   with `.gitkeep`.
 - **Files to Modify:** none.
-- **Expected Output:** `pip install -e .` succeeds; `python -c "import fnb; print(fnb.__version__)"`
-  prints a version.
-- **How to Verify It Works:** run `pip install -e .` then the import; run `pytest -q`
-  (0 tests collected but no import errors).
-- **Common Mistakes:** forgetting `src`-layout config in `pyproject.toml`; missing
-  `__init__.py`; committing large data into `data/raw/`.
+- **Expected Output:** in a Kaggle notebook, `git clone <repo> && pip install -e .` succeeds and
+  `python -c "import fnb; print(fnb.__version__)"` prints a version; a `paths` config abstracts
+  `/kaggle/input` (read-only inputs) and `/kaggle/working` (outputs) so no path is hard-coded.
+- **How to Verify It Works:** run the clone + `pip install -e .` + import cell on Kaggle; run
+  `pytest -q` (0 tests collected but no import errors); paste the cell output back into Cursor.
+- **Common Mistakes:** forgetting `src`-layout config in `pyproject.toml`; missing `__init__.py`;
+  committing large data (raw bytes live only in `/kaggle/input/`, never in the repo); hard-coding
+  absolute paths instead of a configurable `paths` block.
 - **Estimated Difficulty:** ★★
 - **Estimated Time:** 1–2 h
-- **Definition of Done:** package importable, tree matches §2, `README.md` documents
-  `pip install -e .` and the milestone run order.
+- **Definition of Done:** package installs+imports inside a Kaggle notebook, tree matches §2,
+  `README.md` documents the Kaggle clone+install flow and the milestone run order, and a
+  `notebooks/kaggle_runner.ipynb` skeleton (clone → install → attach data → dispatch → save
+  `/kaggle/working/`) exists.
 
 ### Step S2 — Frozen config mirrors (YAML)
 - **Objective:** Encode every FROZEN constant from `final_protocol.md` into the `configs/*.yaml`
@@ -343,20 +389,29 @@ Time estimates assume one graduate student; GPU time is separate from coding tim
 
 ## Milestone 2 — Data Pipeline (S6–S12)
 
-### Step S6 — Dataset acquisition, snapshot & hashing (EXP-P0)
-- **Objective:** Acquire DS1–DS5, freeze committed raw snapshots (cache FakeNewsNet content
-  against link rot), and record SHA-256 per dataset in `data/SNAPSHOT_HASHES.txt` (protocol §4.6).
+### Step S6 — Dataset registration, snapshot & hashing (EXP-P0) — Kaggle input datasets
+- **Objective:** Register DS1–DS5 as **Kaggle input datasets** (attached at `/kaggle/input/`),
+  record each dataset's Kaggle slug + version, and compute a SHA-256 per dataset over the attached
+  read-only files into `data/SNAPSHOT_HASHES.txt` (protocol §4.6). No local downloads: the pinned
+  Kaggle dataset version IS the frozen snapshot; FakeNewsNet is used from its attached hydrated
+  Kaggle dataset (record its slug/version + recovery fraction; do not re-crawl).
 - **Files to Create:** `src/fnb/data/acquire.py`, `scripts/run_data_pipeline.py` (P0 stage).
-- **Files to Modify:** `configs/datasets.yaml` (source paths/URLs, license notes).
-- **Expected Output:** `data/raw/{DS1..DS5}/…` populated; `data/SNAPSHOT_HASHES.txt` with one
-  SHA-256 per dataset; FakeNewsNet hydrated IDs + retrieval date recorded.
-- **How to Verify It Works:** re-running acquisition reproduces identical hashes; a modified
-  byte changes the hash; recovery fraction for FakeNewsNet logged.
-- **Common Mistakes:** committing non-redistributable content (respect licenses, §16);
-  not recording hydration date/IDs; hashing after mutation.
+- **Files to Modify:** `configs/datasets.yaml` (per-dataset Kaggle slug, version, `/kaggle/input/`
+  path, label column, license note).
+- **Expected Output:** `data/SNAPSHOT_HASHES.txt` (one SHA-256 per dataset, computed on Kaggle);
+  a resolved manifest of Kaggle slug + version per dataset; FakeNewsNet source slug/version +
+  recovery fraction recorded. (Raw bytes stay in `/kaggle/input/`; they are NOT copied into the
+  git repo.)
+- **How to Verify It Works:** in a Kaggle notebook, re-running acquisition over the same attached
+  dataset versions reproduces identical hashes; attaching a different dataset version changes the
+  hash; paste `SNAPSHOT_HASHES.txt` back into Cursor to commit it.
+- **Common Mistakes:** copying large `/kaggle/input/` bytes into the repo (commit only hashes +
+  the slug/version manifest); not pinning the Kaggle dataset *version*; hashing after any mutation;
+  ignoring dataset licenses (§16).
 - **Estimated Difficulty:** ★★★
-- **Estimated Time:** 4–6 h (plus download time)
-- **Definition of Done:** all five raw snapshots present, hashed, license-noted; hashes stable.
+- **Estimated Time:** 2–3 h authoring (dataset attach + hashing run on Kaggle)
+- **Definition of Done:** all five datasets attached and pinned by Kaggle slug+version; SHA-256
+  hashes recorded and stable across re-runs on the same versions; license notes captured.
 
 ### Step S7 — Binarization & label-mapping report (EXP-P1a)
 - **Objective:** Apply the frozen global label space `{real=0, fake=1}` and the LIAR 6-way→binary
@@ -829,9 +884,14 @@ bitsandbytes, scikit-learn, lightgbm, nltk, sentence-transformers, textattack, s
 scikit-posthocs, pandas, numpy, scipy, pyarrow, pyyaml, matplotlib, captum, pytest, ruff, black.
 Create empty __init__.py for fnb and every sub-package (config, utils, data, models, training,
 evaluation, adversarial, analysis, experiments). Add .gitkeep to data/{raw,processed,splits},
-results, artifacts, logs. Write README.md documenting `pip install -e .` and the M1→M8 run order,
-and an ENVIRONMENT.md stub with sections for pinned libs, CUDA, and hardware. Production-quality,
-documented. Do not implement logic yet.
+results, artifacts, logs. The execution target is KAGGLE (single T4), authored in Cursor: write
+README.md documenting the Kaggle flow (first notebook cell: git clone the repo, then
+`pip install -e .`, enable Internet, attach input datasets), the /kaggle/input (read-only) vs
+/kaggle/working (outputs) convention, and the M1→M8 run order. Create notebooks/kaggle_runner.ipynb
+as a thin skeleton with cells for: clone+install, attach datasets, dispatch a stage/experiment via
+scripts/, and save /kaggle/working outputs as a versioned dataset. Write an ENVIRONMENT.md stub
+with sections for pinned libs, CUDA, and the Kaggle T4 hardware. Do not implement logic yet.
+Production-quality, documented.
 ```
 
 ### Prompt S2 — Config mirrors
@@ -896,18 +956,21 @@ result CSVs). Write a smoke test creating a run and asserting the log file, runs
 metadata.json exist with all required fields. Docstrings, type hints, ruff/black clean.
 ```
 
-### Prompt S6 — Dataset acquisition & hashing (EXP-P0)
+### Prompt S6 — Dataset registration & hashing (EXP-P0), Kaggle inputs
 
 ```
 Implement src/fnb/data/acquire.py and the P0 stage of scripts/run_data_pipeline.py per
-docs/experiment_matrix.md EXP-P0 and docs/final_protocol.md §4.6. Load DS1–DS5 from paths in
-configs/datasets.yaml, freeze committed raw snapshots under data/raw/{DSx}/, cache FakeNewsNet
-hydrated content (record hydrated IDs + retrieval date + recovery fraction), and write one
-SHA-256 per dataset to data/SNAPSHOT_HASHES.txt using fnb.utils.hashing. Respect each dataset's
-license (no redistribution beyond permitted terms; log license per §16). Re-running must produce
-identical hashes. Add a CLI flag to run only the P0 stage. Log everything via
-fnb.utils.logging_utils. Docstrings, type hints, ruff/black clean. Do not modify other pipeline
-stages.
+docs/experiment_matrix.md EXP-P0 and docs/final_protocol.md §4.6. The runtime is a KAGGLE
+notebook: datasets DS1–DS5 are attached read-only under /kaggle/input/<slug>/ (paths, Kaggle
+slug, and pinned version in configs/datasets.yaml). Do NOT download or copy raw bytes into the
+repo. Load each dataset from its /kaggle/input path, and compute one SHA-256 per dataset over its
+attached files using fnb.utils.hashing, writing data/SNAPSHOT_HASHES.txt plus a resolved manifest
+of {dataset -> kaggle_slug, version, license}. For FakeNewsNet, read from its attached hydrated
+Kaggle dataset (record slug/version + recovery fraction; do not re-crawl). Respect licenses (§16).
+Re-running over the same attached dataset versions must reproduce identical hashes. Add a CLI flag
+to run only the P0 stage. Log via fnb.utils.logging_utils. Make paths configurable so the same
+code runs on Kaggle (/kaggle/input, /kaggle/working) via configs, not hard-coded. Docstrings,
+type hints, ruff/black clean. Do not modify other pipeline stages.
 ```
 
 ### Prompt S7 — Binarization (EXP-P1a)
@@ -1342,11 +1405,21 @@ README.md with final pinned versions and reproduction steps. Docstrings, type hi
 
 # 7. Git Workflow (per milestone)
 
-Conventions: one feature branch per milestone (`milestone/M1-foundation`, …); commit per step
-(`feat(Sx): …`) with tests passing; open a PR into `main` at milestone end; tag a release when a
-milestone leaves the project in a verified runnable state. Never commit large raw data (only
-snapshot hashes, split indices, configs, and result CSVs). Enforce a clean working tree before any
-experiment run (the run registry records the commit SHA).
+Conventions: author and commit in **Cursor**, push to the Git remote; **Kaggle** notebooks
+`git clone`/pull that remote to execute. One feature branch per milestone
+(`milestone/M1-foundation`, …); commit per step (`feat(Sx): …`) with tests passing (tests are run
+on Kaggle and their output pasted back before you consider the step done); open a PR into `main` at
+milestone end; tag a release when a milestone leaves the project in a verified runnable state.
+Never commit large data — raw bytes stay in `/kaggle/input/`, and heavy outputs
+(`processed/*.parquet`, checkpoints, QLoRA adapters) are persisted as **Kaggle output datasets**,
+not git. The repo commits only code, configs, `SNAPSHOT_HASHES.txt`, split indices, and result
+CSVs (small). Enforce a clean working tree before any experiment run; the Kaggle notebook records
+the cloned commit SHA into each run's metadata so the executed code version is provenance-tracked.
+
+**Cursor ⇄ Kaggle loop per step:** (1) generate/edit code in Cursor → commit + push; (2) on Kaggle,
+pull the commit, run the step's cell(s); (3) paste the resulting output/CSV/log back into Cursor;
+(4) commit the produced small artifacts (CSVs, hashes) and, if needed, publish a new Kaggle output
+dataset version for heavy artifacts the next step will consume.
 
 | Milestone | Files expected in the milestone PR | Suggested squash/merge commit message | Tag when |
 |:--:|------|------|------|
@@ -1369,7 +1442,9 @@ Any post-run bug fix bumps a patch tag and requires re-running affected experime
 The framework is experiment-ready ONLY when ALL of the following are true (this is the
 `docs/reproducibility_checklist.md` pre-report gate, made concrete):
 
-1. **Install & tests:** `pip install -e .` clean; `pytest -q` fully green; `ruff`/`black` clean.
+1. **Install & tests (on Kaggle):** in a Kaggle notebook, `git clone` + `pip install -e .` clean;
+   `pytest -q` fully green; `ruff`/`black` clean — paste the notebook output back into Cursor as
+   evidence.
 2. **Configs:** all ten `configs/*.yaml` validate; every frozen value matches `final_protocol.md`
    v1.0; no module hard-codes a frozen constant (grep audit); `protocol_version=v1.0` everywhere.
 3. **Determinism:** `set_global_seed` seeds all RNGs; deterministic algorithms + `CUBLAS_WORKSPACE_CONFIG`
@@ -1397,8 +1472,14 @@ Only when items 1–10 are green may experiment numbers be reported or the paper
 
 # 9. Experiment Phase
 
-Run ONLY after Final Verification (§8) is fully green. Execute in the frozen dependency order from
-`docs/experiment_matrix.md` §10. Primary endpoints first; secondary only if within budget.
+Run ONLY after Final Verification (§8) is fully green. **All execution happens in Kaggle
+notebooks on the single T4**; Cursor is used only to author code and to receive pasted-back
+outputs. Execute in the frozen dependency order from `docs/experiment_matrix.md` §10. Primary
+endpoints first; secondary only if within budget. Because Kaggle sessions are ephemeral and
+time-boxed (≈9–12 h) with a weekly GPU quota, each experiment is run in its own session and MUST
+persist `/kaggle/working/` (results CSVs, checkpoints, adapters) as a Kaggle output dataset; the
+next experiment attaches that output as an input to resume. The ≤120 GPU-h budget (protocol §1) is
+therefore spread across multiple sessions.
 
 **Execution order (one experiment at a time; record GPU-h per run into the budget ledger):**
 
@@ -1417,8 +1498,10 @@ Run ONLY after Final Verification (§8) is fully green. Execute in the frozen de
    EXP-F0→F1→F2 (LLM case study, ≤20 GPU-h else PARTIAL), EXP-G3 (interpretability).
 
 **Run rules (enforced by the framework, restated here):**
-- Every run uses `python scripts/run_experiment.py --exp EXP-XX --seed S` from a clean git tree;
-  the run registry stamps commit SHA + config hash.
+- Every run executes in a Kaggle notebook cell as `!python scripts/run_experiment.py --exp EXP-XX
+  --seed S` after cloning a clean commit; the run registry stamps the cloned commit SHA + config
+  hash + the Kaggle dataset versions attached. Paste the resulting CSV/log back into Cursor and
+  persist `/kaggle/working/` as a Kaggle output dataset.
 - Primary endpoints use 5 seeds `{13,21,42,87,100}`; secondary use 3 seeds `{13,42,100}`.
 - All efficiency/timing runs execute on the single fixed Kaggle NVIDIA T4; other GPUs may produce
   accuracy numbers but are excluded from efficiency tables.
