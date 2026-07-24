@@ -1,0 +1,41 @@
+# =============================================================================
+# stats.yaml — statistical analysis stack (mirror of §10; experiment_matrix §0.8)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0). No confirmatory claim may be made from a raw delta
+# without (BH-adjusted p, effect size, CI of the difference).
+# =============================================================================
+
+# --- Confirmatory comparison family (pre-registered) (§10) --------------------
+# This is the ONLY family eligible for confirmatory claims.
+confirmatory_family:
+  - "pairwise macro-F1 among the 5 encoders on DS1 in-distribution"
+  - "each model's in-domain-vs-cross-domain delta-F1 (RQ-A)"
+  - "full-text vs source-only (RQ-B)"
+
+# --- Primary test: paired bootstrap on macro-F1 difference (§10) --------------
+bootstrap:
+  n_resamples: 10000             # [FROZEN]
+  stratified: true
+  ci: 0.95                       # 95% CI of the DIFFERENCE
+  alternative: "two_sided"
+  # The design's "non-overlapping marginal CIs" rule is REMOVED (§10).
+
+# --- Accuracy-level test (§10) ------------------------------------------------
+mcnemar:
+  paired_predictions: true       # same test set
+
+# --- Effect size (§10) --------------------------------------------------------
+effect_size:
+  metric: "cliffs_delta"         # on per-seed macro-F1; report with every significant result
+
+# --- Multiplicity control (§10) -----------------------------------------------
+multiple_comparisons:
+  method: "benjamini_hochberg_fdr"
+  q: 0.05                        # [FROZEN] significant iff BH-adjusted p < 0.05
+  applied_across: "entire confirmatory family"
+
+# --- Overall ranking (secondary / exploratory) (§10) --------------------------
+ranking:
+  omnibus: "friedman"
+  post_hoc: "nemenyi"
+  scope: "secondary_exploratory"

@@ -1,0 +1,52 @@
+# =============================================================================
+# metrics.yaml — evaluation metric suite (mirror of §8; experiment_matrix §0.7)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0). Every model reports the SAME metric suite on every
+# applicable dataset. Borrowed/literature numbers are NEVER used as our results.
+# =============================================================================
+
+# --- METRICS-CORE (§8) --------------------------------------------------------
+core:
+  primary: "macro_f1"
+  reported_alongside:
+    - "accuracy"
+    - "macro_precision"
+    - "macro_recall"
+    - "per_class_f1_fake"
+    - "per_class_f1_real"
+    - "roc_auc"
+    - "pr_auc"
+  aggregation: "mean_std_across_seeds"   # never best-run-only
+
+# --- Calibration: ECE (§8) ----------------------------------------------------
+ece:
+  bins: 15
+  probabilistic_models_only: true
+  probability_source:
+    transformers: "softmax"
+    svm: "platt_scaling"
+    tree_linear: "predict_proba"
+  exclude: ["llm_zero_shot"]
+
+# --- Transfer metrics (§8, RQ-A) ----------------------------------------------
+transfer:
+  delta_f1: "in_domain_macro_f1 - cross_domain_macro_f1"
+  dispersion: "std_of_macro_f1_across_transfer_targets"
+
+# --- Robustness metrics (§8, RQ-C) --------------------------------------------
+robust:
+  - "clean_accuracy"
+  - "accuracy_under_attack"
+  - "attack_success_rate"
+  - "mean_semantic_similarity_of_successful_attacks"
+
+# --- Efficiency metrics (§14, RQ-D) — single fixed T4 only --------------------
+efficiency:
+  measured_on: "NVIDIA T4 (16 GB), Kaggle"   # runs on any other GPU are excluded
+  metrics:
+    - "parameter_count"
+    - "on_disk_size_mb"
+    - "peak_vram"
+    - "training_wall_clock"
+    - "inference_latency_ms_per_sample"       # batch=1, seq=512
+    - "throughput_samples_per_s"              # batch=32

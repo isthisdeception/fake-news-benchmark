@@ -1,0 +1,56 @@
+# =============================================================================
+# llm_qlora.yaml — HP-LLM decoder-LLM configuration (mirror of §5, §7, RQ-F)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0). Decoder-LLM (RQ-F) is a 2-model CASE STUDY, not a
+# general claim. Runs are capped at 20 GPU-h (§1). Zero/5-shot results are
+# contamination-suspect and reported separately from fine-tuned results (§4.7).
+# =============================================================================
+
+# --- Decoder LLMs (§5; n=2 to avoid single-model overreach) -------------------
+models:
+  MISTRAL: "mistralai/Mistral-7B-Instruct-v0.2"
+  LLAMA: "meta-llama/Llama-3.1-8B-Instruct"
+
+# --- QLoRA recipe (§7; P001 recipe) -------------------------------------------
+qlora:
+  r: 64
+  alpha: 16
+  dropout: 0.2
+  quant_type: "nf4"
+  double_quant: true
+
+# --- Optimizer & schedule (§7) ------------------------------------------------
+optimizer:
+  name: "adamw"
+  weight_decay: 0.01
+  learning_rate: 2.0e-4          # QLoRA LR
+
+scheduler:
+  name: "linear_warmup_cosine"   # same schedule as HP-ENCODER
+  warmup_ratio: 0.06
+  decay_to: 0.0
+
+# --- Training loop (§7) -------------------------------------------------------
+training:
+  effective_batch_size: 16       # achieved via gradient accumulation
+  max_epochs: 10
+  early_stopping:
+    monitor: "val_macro_f1"
+    patience: 3
+    mode: "max"
+
+# --- Inference variants (§5, RQ-F) --------------------------------------------
+inference_variants:
+  - "qlora_finetune"
+  - "zero_shot"                  # contamination-suspect (§4.7)
+  - "five_shot"                  # contamination-suspect (§4.7)
+
+# --- Contamination handling (§4.7) --------------------------------------------
+contamination:
+  probe: "guided_prefix_completion_memorization"
+  report_to: "results/llm_contamination.csv"
+  exclude_flagged_from_zero_shot_claims: true
+
+# --- Budget guardrail (§1) ----------------------------------------------------
+budget:
+  rq_f_cap_gpu_hours: 20

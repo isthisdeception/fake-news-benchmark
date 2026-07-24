@@ -1,0 +1,57 @@
+# =============================================================================
+# protocol.yaml — top-level frozen constants (mirror of docs/final_protocol.md)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0). Code MUST read these values from here, never hard-code.
+# Every value below is traceable to docs/final_protocol.md sections (cited inline).
+# Changing a frozen value requires a protocol version bump (§0).
+# =============================================================================
+
+# --- Change control (§0) ------------------------------------------------------
+protocol_version: "v1.0"
+status: "FROZEN"
+frozen_date: "2026-07-25"
+
+# --- Scope & endpoints (§1) ---------------------------------------------------
+primary_endpoint: >-
+  A reproducible, leakage-audited measurement of cross-dataset generalization
+  in fake news detection.
+
+research_questions:
+  primary:
+    RQ-A: "Cross-dataset generalization (macro-F1 degradation under leave-one-dataset-out transfer)."
+    RQ-B: "Leakage/shortcut attribution (near-duplicate and source/metadata shortcuts)."
+    RQ-C: "Adversarial robustness under label-preserving perturbation."
+  secondary:
+    RQ-D: "Efficiency / accuracy-per-compute Pareto."
+    RQ-E: "Effect of input granularity (title / content / title+content)."
+    RQ-F: "Encoder vs. open decoder-LLM case study (n=2 LLMs)."
+
+# --- Compute budget (§1) ------------------------------------------------------
+compute_budget:
+  total_gpu_hours: 120          # target ≤ 120 GPU-h on Kaggle free tier (T4)
+  rq_f_cap_gpu_hours: 20        # decoder-LLM (RQ-F) hard cap
+  accelerator: "NVIDIA T4 (16 GB), Kaggle"   # single fixed accelerator (§14)
+  # If budget is threatened, cut secondary phases in order F -> E -> D.
+  cut_order_if_over_budget: ["RQ-F", "RQ-E", "RQ-D"]
+
+# --- Seeds & repetition (§9) --------------------------------------------------
+seeds:
+  primary: [13, 21, 42, 87, 100]   # RQ-A/B/C
+  secondary: [13, 42, 100]         # RQ-D/E/F
+  # Deterministic classical models still run all seeds where stochastic (RF, LGBM).
+  reporting: "mean +/- std across seeds; NEVER best-run-only"
+
+# --- Determinism (repro checklist / §15) --------------------------------------
+determinism:
+  use_deterministic_algorithms: true
+  cudnn_deterministic: true
+  cudnn_benchmark: false
+  cublas_workspace_config: ":4096:8"   # must be set BEFORE CUDA init
+  set_pythonhashseed: true
+
+# --- Out of scope (§17) — not to be silently added ----------------------------
+out_of_scope:
+  - "Multilingual / cross-lingual detection"
+  - "Image/video/audio multimodal detection"
+  - "API/closed-weight models as reported systems"
+  - "Any dataset not listed in datasets.yaml"

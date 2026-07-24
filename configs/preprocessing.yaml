@@ -1,0 +1,58 @@
+# =============================================================================
+# preprocessing.yaml — classical vs neural tracks (mirror of final_protocol.md §6)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0). Preprocessing is entangled with model family; all
+# family-level comparisons are bounded accordingly (§6). Split BEFORE any
+# resampling or vectorizer fitting (§4.4).
+# =============================================================================
+
+# --- Classical track (§6) -> version tag vCLEAN-C -----------------------------
+classical_track:
+  version_tag: "vCLEAN-C"
+  steps:
+    - "unicode_nfc"
+    - "lowercase"
+    - "remove_urls"
+    - "remove_html"
+    - "remove_mentions"
+    - "remove_hashtags"
+    - "remove_symbols"
+    - "nltk_stopword_removal"
+    - "wordnet_lemmatization"
+  tfidf:
+    ngram_range: [1, 2]         # unigrams + bigrams
+    max_features: 20000
+    min_df: 5
+    fit_on: "train_only"        # P003 anti-leakage
+  record_versions:
+    - "nltk_stopwords"          # record NLTK stopword list version
+    - "wordnet"                 # record WordNet lemmatizer version
+
+# --- Neural track (§6) -> version tag vCLEAN-N --------------------------------
+neural_track:
+  version_tag: "vCLEAN-N"
+  steps:
+    - "unicode_nfc"
+    - "remove_urls"
+    - "remove_html"
+    - "model_native_subword_tokenization"
+  stopword_removal: false
+  lemmatization: false
+
+# --- Full-document exposure / granularity (§6.1) ------------------------------
+# NOTE: sliding-window numeric params (window/stride/max_len) live in encoder.yaml
+# (HP-ENCODER). Recorded here for cross-reference only.
+full_document_exposure:
+  method: "sliding_window"
+  window_tokens: 512
+  stride_tokens: 128
+  window_logits_pooling: "mean"
+  title_only_max_tokens: 64          # RQ-E title-only condition
+  granularity_conditions: ["title", "content", "title_content"]
+  granularity_applicable_datasets: ["DS1", "DS2", "DS3"]   # both title + body
+
+# --- Class imbalance policy (§7) ----------------------------------------------
+class_imbalance:
+  method: "inverse_frequency_class_weighted_cross_entropy"
+  smote: false                       # SMOTE is PROHIBITED for all models (§7)
+  test_distribution: "natural"       # test sets always use natural class balance

@@ -1,0 +1,27 @@
+# =============================================================================
+# dedup.yaml — deduplication & inter-dataset leakage (mirror of §4.5)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0). Similarity is TF-IDF cosine.
+# =============================================================================
+
+# --- Within-dataset dedup (§4.5) ----------------------------------------------
+within_dataset:
+  remove_exact_duplicates: true
+  near_duplicate_metric: "tfidf_cosine"
+  near_duplicate_threshold: 0.95        # [FROZEN]
+  version_tag: "vDEDUP"
+
+# --- Across-dataset (before every transfer) (§4.5) ----------------------------
+across_dataset:
+  # Remove TEST-side items whose cosine >= threshold to ANY training-side item.
+  metric: "tfidf_cosine"
+  threshold: 0.90                       # [FROZEN]
+  side_removed: "test"
+  report_to: "results/interdataset_overlap.csv"
+  version_tag: "vXDEDUP"                # computed per transfer pair
+
+# --- Dedup-threshold sensitivity check (§4.5, fixes critique #20) -------------
+sensitivity:
+  thresholds: [0.90, 0.95, 0.98]        # run ONCE on DS1 and reported
+  dataset: "DS1"
+  version_tags: ["vDEDUP@0.90", "vDEDUP@0.95", "vDEDUP@0.98"]

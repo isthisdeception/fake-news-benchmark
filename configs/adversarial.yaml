@@ -1,0 +1,38 @@
+# =============================================================================
+# adversarial.yaml — label-preserving robustness suite (mirror of §12, RQ-C)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0). Perturbations are LABEL-PRESERVING ONLY. Attacks that
+# violate the semantic constraint are discarded. Released for reproducibility as
+# a DEFENSIVE evaluation (ethics §16), not as detector-evasion tooling.
+# =============================================================================
+
+# --- Allowed, label-preserving perturbations (§12) ----------------------------
+allowed_attacks:
+  - "character_level_typos"
+  - "embedding_constrained_synonym_substitution"
+  - "benign_word_insertion"
+  - "back_translation_paraphrase"
+
+# --- Prohibited (can flip the gold label) (§12) -------------------------------
+prohibited_attacks:
+  - "negation"
+  - "antonym_substitution"
+
+# --- Semantic constraint (§12) ------------------------------------------------
+semantic_constraint:
+  metric: "universal_sentence_encoder_similarity"
+  min_similarity: 0.90           # [FROZEN] attacks below this are discarded
+  enforced_via: "textattack_constraints"
+
+# --- Application scope (§12) --------------------------------------------------
+apply_to:
+  dataset: "DS1"
+  split: "test"
+  models: "all encoders + classical + (budget-permitting) the 2 LLMs"
+
+# --- Reported metrics (§8 ROBUST; §12) ----------------------------------------
+report:
+  - "clean_accuracy"
+  - "accuracy_under_attack"
+  - "attack_success_rate"
+  - "mean_semantic_similarity_of_successful_attacks"

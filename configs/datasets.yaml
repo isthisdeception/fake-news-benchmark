@@ -1,0 +1,107 @@
+# =============================================================================
+# datasets.yaml — dataset registry (mirror of final_protocol.md §4)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0) for IDs, roles, text types, transfer membership, and the
+# binarization mapping. The Kaggle slug/version/input_path/label_column/license
+# fields are RESOLVED on Kaggle during EXP-P0 (Step S6) and are marked TBD here;
+# they are data lineage, not protocol constants.
+# =============================================================================
+
+# --- Global label space (§4.3) -----------------------------------------------
+label_space:
+  real: 0
+  fake: 1
+
+# --- Article-type transfer set (§4.2) -----------------------------------------
+# Main transfer (RQ-A) is computed ONLY among article-type datasets.
+article_transfer_set: ["DS1", "DS2", "DS3"]
+domain_shift_probe: ["DS4"]                 # test-target only, not in transfer set
+short_statement_track: ["DS5"]              # EXCLUDED from article-to-article transfer
+
+# --- Datasets (§4.1) ----------------------------------------------------------
+datasets:
+  DS1:
+    name: "WELFake"
+    role: "Primary in-distribution + leakage case study (RQ-B)"
+    text_type: "Article (title+text)"
+    in_article_transfer: true
+    # Resolved on Kaggle (S6):
+    kaggle_slug: "TBD"
+    kaggle_version: "TBD"
+    input_path: "TBD"          # e.g. /kaggle/input/<slug>/
+    label_column: "TBD"
+    text_columns: { title: "TBD", body: "TBD" }
+    source_field_available: "TBD"   # affects S-SRC source-disjoint split (§11)
+    license_note: "TBD"
+
+  DS2:
+    name: "ISOT"
+    role: "Saturation / easy anchor"
+    text_type: "Article (title+text)"
+    in_article_transfer: true
+    kaggle_slug: "TBD"
+    kaggle_version: "TBD"
+    input_path: "TBD"
+    label_column: "TBD"
+    text_columns: { title: "TBD", body: "TBD" }
+    source_field_available: "TBD"
+    license_note: "TBD"
+
+  DS3:
+    name: "FakeNewsNet (PolitiFact+GossipCop)"
+    role: "Transfer target"
+    text_type: "Article (title+text)"
+    in_article_transfer: true
+    # Link-rot sensitive: use the attached hydrated Kaggle snapshot ONLY; do not re-crawl (§4.6).
+    kaggle_slug: "TBD"
+    kaggle_version: "TBD"
+    input_path: "TBD"
+    label_column: "TBD"
+    text_columns: { title: "TBD", body: "TBD" }
+    recovery_fraction: "TBD"    # record hydrated fraction (§4.6)
+    license_note: "TBD"
+
+  DS4:
+    name: "COVID-19 Fake News"
+    role: "Domain-shift probe (test target only)"
+    text_type: "Short article / claim"
+    in_article_transfer: false
+    kaggle_slug: "TBD"
+    kaggle_version: "TBD"
+    input_path: "TBD"
+    label_column: "TBD"
+    text_columns: { title: "TBD", body: "TBD" }
+    license_note: "TBD"
+
+  DS5:
+    name: "LIAR"
+    role: "Hard short-statement control (analyzed separately)"
+    text_type: "Short statement"
+    in_article_transfer: false
+    kaggle_slug: "TBD"
+    kaggle_version: "TBD"
+    input_path: "TBD"
+    label_column: "TBD"
+    text_columns: { statement: "TBD" }
+    license_note: "TBD"
+    # LIAR 6-way -> binary map (§4.3) [FROZEN]
+    liar_binary_map:
+      fake: ["pants-fire", "false", "barely-true"]
+      real: ["half-true", "mostly-true", "true"]
+
+# --- Frozen data-version lineage tags (experiment_matrix §0.2) -----------------
+# Every result must record the dataset version string it used.
+version_tags:
+  vRAW: "committed raw snapshot; SHA-256 in data/SNAPSHOT_HASHES.txt (§4.6)"
+  vBIN: "after frozen binary label mapping {real=0, fake=1}; ambiguous rows dropped + counted (§4.3)"
+  vCLEAN-C: "classical-track preprocessing (§6)"
+  vCLEAN-N: "neural-track preprocessing (§6)"
+  vDEDUP: "after within-dataset exact + near-dup removal (TF-IDF cosine >= 0.95) (§4.5)"
+  vXDEDUP: "after cross-dataset test-side removal (cosine >= 0.90 to any train item); per transfer pair (§4.5)"
+  vDEDUP_sensitivity: ["vDEDUP@0.90", "vDEDUP@0.95", "vDEDUP@0.98"]   # DS1 only (§4.5)
+
+# --- LLM contamination handling (§4.7) ----------------------------------------
+llm_contamination:
+  probe: "guided prefix-completion memorization test, per LLM per dataset"
+  report_to: "results/llm_contamination.csv"
+  rule: "datasets flagged contaminated for an LLM are excluded from that LLM's zero-shot claims"

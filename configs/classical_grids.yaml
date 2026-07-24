@@ -1,0 +1,58 @@
+# =============================================================================
+# classical_grids.yaml — per-model classical grids (HP-CLASSICAL, §7)
+# -----------------------------------------------------------------------------
+# FROZEN (protocol v1.0) for the shared TF-IDF block and the selection rule.
+# The protocol (§7, §5) DELEGATES the specific per-model grid to THIS file
+# ("frozen grid per model in configs/classical_grids.yaml, selected by validation
+# macro-F1"); the grids below are therefore defined here and are themselves frozen
+# once committed. Selection metric is validation macro-F1. Vectorizer fit on
+# TRAIN only (P003 anti-leakage). SMOTE prohibited (§7).
+# =============================================================================
+
+# --- Shared TF-IDF representation (HP-CLASSICAL; §6, §7) ----------------------
+tfidf:
+  ngram_range: [1, 2]
+  max_features: 20000
+  min_df: 5
+  fit_on: "train_only"
+
+selection:
+  metric: "val_macro_f1"        # grid point selected by validation macro-F1
+  refit: true
+
+class_weight: "balanced"        # inverse-frequency weighting (§7)
+
+# --- Per-model grids (model IDs per experiment_matrix §0.4) -------------------
+models:
+  LR:                            # Logistic Regression
+    estimator: "sklearn.linear_model.LogisticRegression"
+    grid:
+      C: [0.01, 0.1, 1.0, 10.0]
+      penalty: ["l2"]
+      solver: ["liblinear"]
+      class_weight: ["balanced"]
+      max_iter: [1000]
+
+  SVM:                           # Linear SVM (probabilities via Platt scaling, §8)
+    estimator: "sklearn.svm.LinearSVC"
+    calibration: "platt"         # CalibratedClassifierCV for probability outputs / ECE
+    grid:
+      C: [0.01, 0.1, 1.0, 10.0]
+      class_weight: ["balanced"]
+      max_iter: [5000]
+
+  RF:                            # Random Forest (stochastic -> all seeds, §9)
+    estimator: "sklearn.ensemble.RandomForestClassifier"
+    grid:
+      n_estimators: [200, 500]
+      max_depth: [null, 50]
+      min_samples_leaf: [1, 2]
+      class_weight: ["balanced"]
+
+  LGBM:                          # LightGBM (stochastic -> all seeds, §9)
+    estimator: "lightgbm.LGBMClassifier"
+    grid:
+      n_estimators: [200, 500]
+      num_leaves: [31, 63]
+      learning_rate: [0.05, 0.1]
+      class_weight: ["balanced"]
