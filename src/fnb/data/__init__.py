@@ -26,6 +26,7 @@ from .preprocess import (
     preprocess_all,
 )
 from .splits import SplitRunResult, create_all_splits, stratified_random_split
+from .stats import compute_dataset_stats
 
 __all__ = [
     "BinarizeResult",
@@ -40,6 +41,7 @@ __all__ = [
     "binarize_dataset",
     "clean_text_classical",
     "clean_text_neural",
+    "compute_dataset_stats",
     "create_all_splits",
     "dedup_all",
     "dedup_dataframe",

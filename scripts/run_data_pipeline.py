@@ -9,6 +9,7 @@ Examples:
     python scripts/run_data_pipeline.py --stage P1b
     python scripts/run_data_pipeline.py --stage P2
     python scripts/run_data_pipeline.py --stage P3
+    python scripts/run_data_pipeline.py --stage P4
     python scripts/run_data_pipeline.py --stage all
 """
 
@@ -80,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--split-applicability-path",
         default="results/split_applicability.csv",
         help="Where to write S-SRC / S-TEMP applicability notes.",
+    )
+    parser.add_argument(
+        "--dataset-stats-path",
+        default="results/dataset_stats.csv",
+        help="Where to write EXP-P4 dataset_stats.csv.",
     )
     parser.add_argument(
         "--discover",
@@ -214,6 +220,25 @@ def _run_p3(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_p4(args: argparse.Namespace) -> int:
+    from fnb.data.stats import compute_dataset_stats
+
+    df = compute_dataset_stats(
+        processed_dir=args.output_dir,
+        splits_dir=args.splits_dir,
+        report_path=args.dataset_stats_path,
+        config_dir=args.config_dir,
+        dataset_ids=args.datasets,
+    )
+    print(f"Wrote dataset stats: {len(df)} rows → {args.dataset_stats_path}")
+    # Compact preview: full-corpus rows only
+    full = df[df["split"] == "full"][
+        ["dataset_id", "dataset_version", "n", "n_real", "n_fake", "fake_ratio", "mean_words"]
+    ]
+    print(full.to_string(index=False))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     args = build_parser().parse_args(argv)
@@ -253,12 +278,19 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             return rc
 
-    remaining = STAGES[5:] if args.stage == "all" else [args.stage]
+    if args.stage in ("P4", "all"):
+        rc = _run_p4(args)
+        if args.stage == "P4":
+            return rc
+        if rc != 0:
+            return rc
+
+    remaining = STAGES[6:] if args.stage == "all" else [args.stage]
     for stage in remaining:
-        if stage in ("P0", "P1a", "P1b", "P2", "P3"):
+        if stage in ("P0", "P1a", "P1b", "P2", "P3", "P4"):
             continue
         raise NotImplementedError(
-            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S10)."
+            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S11)."
         )
     return 0
 
