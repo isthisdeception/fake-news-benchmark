@@ -33,13 +33,14 @@ training:
     mode: "max"
 
 # --- Sequence handling (§6.1) -------------------------------------------------
+# Consumed by fnb.training.datasets (sliding windows; never single-pass truncate).
 sequence:
-  max_length: 512
+  max_length: 512                # [FROZEN] equals window_tokens
   sliding_window:
-    window_tokens: 512
-    stride_tokens: 128
+    window_tokens: 512           # [FROZEN]
+    stride_tokens: 128           # [FROZEN]
     window_logits_pooling: "mean"
-  title_only_max_length: 64      # RQ-E title-only condition (HP-TITLE)
+  title_only_max_length: 64      # [FROZEN] RQ-E title-only condition (HP-TITLE)
 
 # --- Loss / imbalance (§7) ----------------------------------------------------
 loss:
