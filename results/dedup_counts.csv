@@ -1,0 +1,6 @@
+dataset_id,n_input,n_after_exact,n_removed_exact,n_kept,n_removed_near,n_removed_total,pct_removed,near_duplicate_threshold,version_tag,text_source,notes
+DS1,72134,63397,8737,62455,942,9679,13.4181,0.95,vDEDUP,vCLEAN-C,
+DS2,44898,38829,6069,38704,125,6194,13.7957,0.95,vDEDUP,vCLEAN-C,
+DS3,23196,21694,1502,21664,30,1532,6.6046,0.95,vDEDUP,vCLEAN-C,
+DS4,10700,10359,341,10229,130,471,4.4019,0.95,vDEDUP,vCLEAN-C,
+DS5,12836,12801,35,12796,5,40,0.3116,0.95,vDEDUP,vCLEAN-C,

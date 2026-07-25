@@ -1,0 +1,16 @@
+dataset_id,regime,status,note,n_seeds_written
+DS1,S-RAND,ok,stratified 70%/15%/15% on vDEDUP n=62455,5
+DS1,S-SRC,not_applicable,source_field_available=false in datasets.yaml — WELFake has no recoverable publisher/source id,0
+DS1,S-TEMP,not_applicable,no reliable timestamp column in vDEDUP (protocol §4.4 honest N/A),0
+DS2,S-RAND,ok,stratified 70%/15%/15% on vDEDUP n=38704,5
+DS2,S-SRC,not_applicable,S-SRC only defined for DS1 (protocol EXP-P3 / experiment_matrix),0
+DS2,S-TEMP,not_applicable,no reliable timestamp column in vDEDUP (protocol §4.4 honest N/A),0
+DS3,S-RAND,ok,stratified 70%/15%/15% on vDEDUP n=21664,5
+DS3,S-SRC,not_applicable,S-SRC only defined for DS1 (protocol EXP-P3 / experiment_matrix),0
+DS3,S-TEMP,not_applicable,no reliable timestamp column in vDEDUP (protocol §4.4 honest N/A),0
+DS4,S-RAND,ok,stratified 70%/15%/15% on vDEDUP n=10229,5
+DS4,S-SRC,not_applicable,S-SRC only defined for DS1 (protocol EXP-P3 / experiment_matrix),0
+DS4,S-TEMP,not_applicable,no reliable timestamp column in vDEDUP (protocol §4.4 honest N/A),0
+DS5,S-RAND,ok,stratified 70%/15%/15% on vDEDUP n=12796,5
+DS5,S-SRC,not_applicable,S-SRC only defined for DS1 (protocol EXP-P3 / experiment_matrix),0
+DS5,S-TEMP,not_applicable,no reliable timestamp column in vDEDUP (protocol §4.4 honest N/A),0

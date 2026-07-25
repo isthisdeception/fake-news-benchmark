@@ -1,0 +1,14 @@
+{
+  "download_date": "2026-07-25",
+  "nltk_version": "3.9.1",
+  "recorded_utc": "2026-07-25T16:30:34+00:00",
+  "stopwords": {
+    "lang": "english",
+    "n_words": 198
+  },
+  "wordnet": {
+    "available": true,
+    "n_synsets": 117659,
+    "note": "NLTK WordNet corpus (Princeton WordNet via nltk.corpus.wordnet)"
+  }
+}
