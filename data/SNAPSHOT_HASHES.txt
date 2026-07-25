@@ -1,0 +1,4 @@
+# SNAPSHOT_HASHES.txt — frozen dataset content hashes (protocol §4.6)
+# Placeholder until EXP-P0 (Step S6) is run on Kaggle over attached datasets.
+# Format after S6: DATASET_ID  SHA256  N_FILES  TOTAL_BYTES  INPUT_PATH  SLUG@VERSION
+# Raw bytes stay under /kaggle/input/; only this ledger is committed to git.

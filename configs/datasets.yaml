@@ -2,21 +2,26 @@
 # datasets.yaml — dataset registry (mirror of final_protocol.md §4)
 # -----------------------------------------------------------------------------
 # FROZEN (protocol v1.0) for IDs, roles, text types, transfer membership, and the
-# binarization mapping. The Kaggle slug/version/input_path/label_column/license
-# fields are RESOLVED on Kaggle during EXP-P0 (Step S6) and are marked TBD here;
-# they are data lineage, not protocol constants.
+# binarization mapping.
+#
+# Kaggle lineage fields (slug / version / input_path / columns / license) are
+# resolved during EXP-P0 (Step S6). Candidate slugs below are starting points —
+# pin the *exact* Kaggle dataset VERSION after attaching, then re-run P0 hashing.
+# input_path is filled automatically by fnb.data.acquire when the dataset is
+# attached under /kaggle/input/<dirname>/.
 # =============================================================================
 
 # --- Global label space (§4.3) -----------------------------------------------
+# NOTE: some source files (e.g. WELFake on Zenodo) use 0=fake / 1=real. That
+# polarity is remapped to this global space in EXP-P1a (S7), not here.
 label_space:
   real: 0
   fake: 1
 
 # --- Article-type transfer set (§4.2) -----------------------------------------
-# Main transfer (RQ-A) is computed ONLY among article-type datasets.
 article_transfer_set: ["DS1", "DS2", "DS3"]
-domain_shift_probe: ["DS4"]                 # test-target only, not in transfer set
-short_statement_track: ["DS5"]              # EXCLUDED from article-to-article transfer
+domain_shift_probe: ["DS4"]
+short_statement_track: ["DS5"]
 
 # --- Datasets (§4.1) ----------------------------------------------------------
 datasets:
@@ -25,72 +30,77 @@ datasets:
     role: "Primary in-distribution + leakage case study (RQ-B)"
     text_type: "Article (title+text)"
     in_article_transfer: true
-    # Resolved on Kaggle (S6):
-    kaggle_slug: "TBD"
-    kaggle_version: "TBD"
-    input_path: "TBD"          # e.g. /kaggle/input/<slug>/
-    label_column: "TBD"
-    text_columns: { title: "TBD", body: "TBD" }
-    source_field_available: "TBD"   # affects S-SRC source-disjoint split (§11)
-    license_note: "TBD"
+    # Candidate Kaggle dataset (confirm version on the dataset page after attach):
+    kaggle_slug: "saurabhshahane/fake-news-classification"
+    kaggle_version: "TBD"          # pin after attach, e.g. "3"
+    input_dirname: "fake-news-classification"
+    input_path: "TBD"               # resolved by acquire → /kaggle/input/<dirname>
+    label_column: "label"           # confirm after inspect; often Label/label
+    text_columns: { title: "title", body: "text" }
+    # WELFake source polarity is often 0=fake, 1=real (Zenodo); remap in S7.
+    source_label_polarity: "0=fake,1=real (confirm on attach)"
+    source_field_available: false
+    license_note: "CC BY-NC 4.0 (Attribution-NonCommercial); research use OK"
 
   DS2:
     name: "ISOT"
     role: "Saturation / easy anchor"
     text_type: "Article (title+text)"
     in_article_transfer: true
-    kaggle_slug: "TBD"
+    kaggle_slug: "clmentbisaillon/fake-and-real-news-dataset"
     kaggle_version: "TBD"
+    input_dirname: "fake-and-real-news-dataset"
     input_path: "TBD"
-    label_column: "TBD"
-    text_columns: { title: "TBD", body: "TBD" }
-    source_field_available: "TBD"
-    license_note: "TBD"
+    label_column: "label"           # often derived from True.csv / Fake.csv filenames
+    text_columns: { title: "title", body: "text" }
+    source_field_available: "subject"   # ISOT has a subject column; not a publisher id
+    license_note: "University of Victoria ISOT Research Lab; publicly available"
 
   DS3:
     name: "FakeNewsNet (PolitiFact+GossipCop)"
     role: "Transfer target"
     text_type: "Article (title+text)"
     in_article_transfer: true
-    # Link-rot sensitive: use the attached hydrated Kaggle snapshot ONLY; do not re-crawl (§4.6).
-    kaggle_slug: "TBD"
+    # Prefer a HYDRATED Kaggle snapshot — do NOT re-crawl (§4.6).
+    kaggle_slug: "TBD"              # confirm hydrated FakeNewsNet copy together on Kaggle
     kaggle_version: "TBD"
+    input_dirname: "TBD"
     input_path: "TBD"
     label_column: "TBD"
     text_columns: { title: "TBD", body: "TBD" }
-    recovery_fraction: "TBD"    # record hydrated fraction (§4.6)
-    license_note: "TBD"
+    recovery_fraction: "TBD"        # hydrated / expected; record after inspect
+    license_note: "FakeNewsNet (KaiDMML); content via hydrated snapshot only — no redistribution beyond permitted terms"
 
   DS4:
     name: "COVID-19 Fake News"
     role: "Domain-shift probe (test target only)"
     text_type: "Short article / claim"
     in_article_transfer: false
-    kaggle_slug: "TBD"
+    kaggle_slug: "TBD"              # confirm CONSTRAINT / COVID-19 Fake News copy on Kaggle
     kaggle_version: "TBD"
+    input_dirname: "TBD"
     input_path: "TBD"
     label_column: "TBD"
     text_columns: { title: "TBD", body: "TBD" }
-    license_note: "TBD"
+    license_note: "Public COVID-19 / CONSTRAINT-style fake-news corpus; confirm license on dataset page"
 
   DS5:
     name: "LIAR"
     role: "Hard short-statement control (analyzed separately)"
     text_type: "Short statement"
     in_article_transfer: false
-    kaggle_slug: "TBD"
+    kaggle_slug: "mrisdal/liar-dataset"
     kaggle_version: "TBD"
+    input_dirname: "liar-dataset"
     input_path: "TBD"
-    label_column: "TBD"
-    text_columns: { statement: "TBD" }
-    license_note: "TBD"
-    # LIAR 6-way -> binary map (§4.3) [FROZEN]
+    label_column: "label"           # 6-way; mapped in S7
+    text_columns: { statement: "statement" }
+    license_note: "Publicly available (Wang 2017 LIAR); research use"
     liar_binary_map:
       fake: ["pants-fire", "false", "barely-true"]
       real: ["half-true", "mostly-true", "true"]
 
 # --- Frozen data-version lineage tags (experiment_matrix §0.2) -----------------
-# Every result must record the dataset version string it used.
 version_tags:
   vRAW: "committed raw snapshot; SHA-256 in data/SNAPSHOT_HASHES.txt (§4.6)"
   vBIN: "after frozen binary label mapping {real=0, fake=1}; ambiguous rows dropped + counted (§4.3)"
@@ -98,7 +108,7 @@ version_tags:
   vCLEAN-N: "neural-track preprocessing (§6)"
   vDEDUP: "after within-dataset exact + near-dup removal (TF-IDF cosine >= 0.95) (§4.5)"
   vXDEDUP: "after cross-dataset test-side removal (cosine >= 0.90 to any train item); per transfer pair (§4.5)"
-  vDEDUP_sensitivity: ["vDEDUP@0.90", "vDEDUP@0.95", "vDEDUP@0.98"]   # DS1 only (§4.5)
+  vDEDUP_sensitivity: ["vDEDUP@0.90", "vDEDUP@0.95", "vDEDUP@0.98"]
 
 # --- LLM contamination handling (§4.7) ----------------------------------------
 llm_contamination:

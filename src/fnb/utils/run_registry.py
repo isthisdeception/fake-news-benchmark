@@ -94,11 +94,31 @@ def _module_version(name: str) -> str:
         return "not-installed"
 
 
+def find_git_root(start: str | Path | None = None) -> Path | None:
+    """Walk upward from ``start`` (default: cwd) until a ``.git`` directory is found.
+
+    On Kaggle, runs often pass ``base_dir=/kaggle/working`` while the clone lives
+    at ``/kaggle/working/fake-news-benchmark``. Callers should also try the cwd
+    (the clone) when resolving provenance.
+    """
+    cur = Path(start or Path.cwd()).resolve()
+    for candidate in (cur, *cur.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
 def git_commit_sha(repo_dir: str | Path | None = None) -> str:
+    root = find_git_root(repo_dir) if repo_dir else find_git_root()
+    if root is None and repo_dir is not None:
+        # Fall back: repo may be cwd (clone) even if base_dir is /kaggle/working.
+        root = find_git_root(Path.cwd())
+    if root is None:
+        return "unknown"
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=str(repo_dir) if repo_dir else None,
+            cwd=str(root),
             capture_output=True,
             text=True,
             check=True,
@@ -109,10 +129,15 @@ def git_commit_sha(repo_dir: str | Path | None = None) -> str:
 
 
 def git_is_dirty(repo_dir: str | Path | None = None) -> bool:
+    root = find_git_root(repo_dir) if repo_dir else find_git_root()
+    if root is None and repo_dir is not None:
+        root = find_git_root(Path.cwd())
+    if root is None:
+        return False
     try:
         out = subprocess.run(
             ["git", "status", "--porcelain"],
-            cwd=str(repo_dir) if repo_dir else None,
+            cwd=str(root),
             capture_output=True,
             text=True,
             check=True,
@@ -182,12 +207,18 @@ def start_run(
     *,
     config_names: list[str] | None = None,
     base_dir: str | Path | None = None,
+    repo_dir: str | Path | None = None,
     results_dir: str | Path = "results",
     logs_dir: str | Path = "logs",
     protocol_version: str = PROTOCOL_VERSION,
     extra: dict[str, Any] | None = None,
 ) -> RunContext:
     """Begin a run: create the log file, capture environment/git/config hashes.
+
+    ``base_dir`` is where OUTPUTS go (results/, logs/); on Kaggle set it to
+    ``/kaggle/working``. ``repo_dir`` is where the CODE lives (the git repo) and
+    defaults to the current working directory, so the git commit is captured
+    even when outputs are written elsewhere.
 
     Returns a :class:`RunContext` to pass to :func:`finish_run`.
     """
@@ -196,6 +227,17 @@ def start_run(
     logs_path = base / logs_dir
     ensure_dir(results_path)
     ensure_dir(logs_path)
+
+    # Resolve the git root: explicit repo_dir, then cwd, then common Kaggle clone
+    # path under base (/kaggle/working/fake-news-benchmark).
+    if repo_dir is not None:
+        repo_root = find_git_root(repo_dir)
+    else:
+        repo_root = (
+            find_git_root(Path.cwd())
+            or find_git_root(base)
+            or find_git_root(base / "fake-news-benchmark")
+        )
 
     run_id = make_run_id(experiment, model, dataset_version, split, seed)
     experiment_id = make_experiment_id(experiment, model, dataset_version, split)
@@ -227,8 +269,8 @@ def start_run(
         logs_dir=logs_path,
         config_hashes=config_hashes,
         environment=collect_environment(),
-        git_commit=git_commit_sha(base),
-        git_dirty=git_is_dirty(base),
+        git_commit=git_commit_sha(repo_root),
+        git_dirty=git_is_dirty(repo_root),
         extra=dict(extra or {}),
     )
     logger.info(
