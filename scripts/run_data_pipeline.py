@@ -5,13 +5,13 @@ Thin CLI wrapper. Research logic lives in ``fnb.data.*``.
 Examples:
     python scripts/run_data_pipeline.py --stage P0
     python scripts/run_data_pipeline.py --stage P0 --discover
+    python scripts/run_data_pipeline.py --stage P1a
     python scripts/run_data_pipeline.py --stage all
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 
 STAGES = ["P0", "P1a", "P1b", "P2", "P3", "P4", "P5"]
 
@@ -52,6 +52,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest-path",
         default="results/kaggle_dataset_manifest.json",
         help="Where to write the resolved Kaggle dataset manifest.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="data/processed",
+        help="Directory for processed parquet outputs (vBIN, vCLEAN-*, …).",
+    )
+    parser.add_argument(
+        "--report-path",
+        default="results/label_mapping_report.csv",
+        help="Where to write the EXP-P1a label-mapping report CSV.",
     )
     parser.add_argument(
         "--discover",
@@ -95,6 +105,32 @@ def _run_p0(args: argparse.Namespace) -> int:
     return 0 if ok and not missing else (0 if ok else 1)
 
 
+def _run_p1a(args: argparse.Namespace) -> int:
+    from fnb.data.binarize import binarize_all
+
+    results = binarize_all(
+        input_root=args.input_root,
+        output_dir=args.output_dir,
+        report_path=args.report_path,
+        config_dir=args.config_dir,
+        dataset_ids=args.datasets,
+    )
+    print(f"Binarized {len(results)} dataset(s) → vBIN")
+    for r in results:
+        rep = r.report
+        dropped = rep.n_dropped_ambiguous + rep.n_dropped_missing_label
+        print(
+            f"  {rep.dataset_id}: kept={rep.n_kept}/{rep.n_raw} "
+            f"(dropped={dropped}: ambiguous={rep.n_dropped_ambiguous}, "
+            f"missing={rep.n_dropped_missing_label}); "
+            f"real={rep.n_real} fake={rep.n_fake}"
+        )
+        if r.output_path is not None:
+            print(f"           → {r.output_path}")
+    print(f"\nWrote: {args.report_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     args = build_parser().parse_args(argv)
@@ -106,13 +142,19 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             return rc
 
-    remaining = STAGES[1:] if args.stage == "all" else [args.stage]
+    if args.stage in ("P1a", "all"):
+        rc = _run_p1a(args)
+        if args.stage == "P1a":
+            return rc
+        if rc != 0:
+            return rc
+
+    remaining = STAGES[2:] if args.stage == "all" else [args.stage]
     for stage in remaining:
-        if stage == "P0":
+        if stage in ("P0", "P1a"):
             continue
         raise NotImplementedError(
-            f"Data pipeline stage '{stage}' is not implemented yet "
-            f"(Milestone 2, steps after S6)."
+            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S7)."
         )
     return 0
 

@@ -35,10 +35,14 @@ datasets:
     kaggle_version: "TBD"          # pin after attach, e.g. "3"
     input_dirname: "fake-news-classification"
     input_path: "/kaggle/input/datasets/saurabhshahane/fake-news-classification"
-    label_column: "label"           # confirm after inspect; often Label/label
+    label_column: "label"           # WELFake_Dataset.csv: Title, Text, Label
     text_columns: { title: "title", body: "text" }
-    # WELFake source polarity is often 0=fake, 1=real (Zenodo); remap in S7.
-    source_label_polarity: "0=fake,1=real (confirm on attach)"
+    # Zenodo WELFake (Verma et al.): Label 0=fake, 1=real — opposite of global §4.3.
+    # Remap in EXP-P1a so global remains {real=0, fake=1}.
+    source_label_polarity: "0=fake,1=real (Zenodo WELFake)"
+    source_binary_map:
+      fake: [0, "0", "fake"]
+      real: [1, "1", "real"]
     source_field_available: false
     license_note: "CC BY-NC 4.0 (Attribution-NonCommercial); research use OK"
 
@@ -51,8 +55,12 @@ datasets:
     kaggle_version: "TBD"
     input_dirname: "fake-and-real-news-dataset"
     input_path: "/kaggle/input/datasets/clmentbisaillon/fake-and-real-news-dataset"
-    label_column: "label"           # often derived from True.csv / Fake.csv filenames
+    label_column: "label"           # derived from True.csv / Fake.csv filenames in S7
     text_columns: { title: "title", body: "text" }
+    # Loader assigns label_raw from filename; map tokens → global §4.3.
+    source_binary_map:
+      fake: ["fake"]
+      real: ["real"]
     source_field_available: "subject"   # ISOT has a subject column; not a publisher id
     license_note: "University of Victoria ISOT Research Lab; publicly available"
 
@@ -76,6 +84,9 @@ datasets:
       - "fakenewsnet-official/politifact_real.csv"
       - "fakenewsnet-official/gossipcop_fake.csv"
       - "fakenewsnet-official/gossipcop_real.csv"
+    source_binary_map:
+      fake: ["fake"]
+      real: ["real"]
     recovery_fraction: "TBD"        # set after article-body hydration
     license_note: "FakeNewsNet (KaiDMML / Shu et al.); official metadata snapshot isthisdeception/fakenewsnet-official; no re-crawl for reported runs"
 
@@ -91,11 +102,15 @@ datasets:
     # Nested upload layout: .../covid19-fake-news/covid19-fake-news/*.csv
     input_path: "/kaggle/input/datasets/isthisdeception/covid19-fake-news"
     label_column: "label"
-    text_columns: { body: "tweet" }   # CONSTRAINT English posts; confirm after inspect
+    text_columns: { body: "tweet" }   # CONSTRAINT English posts (id, tweet, label)
     source_files:
       - "covid19-fake-news/Constraint_Train.csv"
       - "covid19-fake-news/Constraint_Val.csv"
       - "covid19-fake-news/english_test_with_labels.csv"
+    # Official CONSTRAINT labels are the strings "real" / "fake".
+    source_binary_map:
+      fake: ["fake"]
+      real: ["real"]
     license_note: "CONSTRAINT 2021 COVID-19 Fake News (Patwa et al.); snapshot isthisdeception/covid19-fake-news"
 
   DS5:
