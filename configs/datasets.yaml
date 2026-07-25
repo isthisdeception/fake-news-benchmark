@@ -76,13 +76,19 @@ datasets:
     role: "Domain-shift probe (test target only)"
     text_type: "Short article / claim"
     in_article_transfer: false
-    kaggle_slug: "TBD"              # confirm CONSTRAINT / COVID-19 Fake News copy on Kaggle
-    kaggle_version: "TBD"
-    input_dirname: "TBD"
-    input_path: "TBD"
-    label_column: "TBD"
-    text_columns: { title: "TBD", body: "TBD" }
-    license_note: "Public COVID-19 / CONSTRAINT-style fake-news corpus; confirm license on dataset page"
+    # Plan B: CONSTRAINT COVID-19 Fake News CSVs uploaded by project owner.
+    kaggle_slug: "isthisdeception/covid19-fake-news"
+    kaggle_version: "1"
+    input_dirname: "covid19-fake-news"
+    # Nested upload layout: .../covid19-fake-news/covid19-fake-news/*.csv
+    input_path: "/kaggle/input/datasets/isthisdeception/covid19-fake-news"
+    label_column: "label"
+    text_columns: { body: "tweet" }   # CONSTRAINT English posts; confirm after inspect
+    source_files:
+      - "covid19-fake-news/Constraint_Train.csv"
+      - "covid19-fake-news/Constraint_Val.csv"
+      - "covid19-fake-news/english_test_with_labels.csv"
+    license_note: "CONSTRAINT 2021 COVID-19 Fake News (Patwa et al.); snapshot isthisdeception/covid19-fake-news"
 
   DS5:
     name: "LIAR"
