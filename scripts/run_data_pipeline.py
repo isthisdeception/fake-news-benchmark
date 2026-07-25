@@ -7,6 +7,7 @@ Examples:
     python scripts/run_data_pipeline.py --stage P0 --discover
     python scripts/run_data_pipeline.py --stage P1a
     python scripts/run_data_pipeline.py --stage P1b
+    python scripts/run_data_pipeline.py --stage P2
     python scripts/run_data_pipeline.py --stage all
 """
 
@@ -63,6 +64,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--report-path",
         default="results/label_mapping_report.csv",
         help="Where to write the EXP-P1a label-mapping report CSV.",
+    )
+    parser.add_argument(
+        "--dedup-report-path",
+        default="results/dedup_counts.csv",
+        help="Where to write the EXP-P2 within-dataset dedup counts CSV.",
     )
     parser.add_argument(
         "--discover",
@@ -156,6 +162,30 @@ def _run_p1b(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_p2(args: argparse.Namespace) -> int:
+    from fnb.data.dedup import dedup_all
+
+    results = dedup_all(
+        processed_dir=args.output_dir,
+        output_dir=args.output_dir,
+        report_path=args.dedup_report_path,
+        config_dir=args.config_dir,
+        dataset_ids=args.datasets,
+    )
+    print(f"Deduped {len(results)} dataset(s) → vDEDUP")
+    for r in results:
+        c = r.counts
+        print(
+            f"  {c.dataset_id}: kept={c.n_kept}/{c.n_input} "
+            f"(exact-{c.n_removed_exact}, near-{c.n_removed_near}, "
+            f"{c.pct_removed:.2f}% removed; thr={c.near_duplicate_threshold})"
+        )
+        if r.output_path is not None:
+            print(f"           → {r.output_path}")
+    print(f"\nWrote: {args.dedup_report_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     args = build_parser().parse_args(argv)
@@ -181,12 +211,19 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             return rc
 
-    remaining = STAGES[3:] if args.stage == "all" else [args.stage]
+    if args.stage in ("P2", "all"):
+        rc = _run_p2(args)
+        if args.stage == "P2":
+            return rc
+        if rc != 0:
+            return rc
+
+    remaining = STAGES[4:] if args.stage == "all" else [args.stage]
     for stage in remaining:
-        if stage in ("P0", "P1a", "P1b"):
+        if stage in ("P0", "P1a", "P1b", "P2"):
             continue
         raise NotImplementedError(
-            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S8)."
+            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S9)."
         )
     return 0
 
