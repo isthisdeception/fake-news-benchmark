@@ -8,12 +8,13 @@ import pytest
 import yaml
 
 from fnb.data.acquire import (
+    DatasetSnapshot,
     acquire_snapshots,
     hash_directory,
+    list_input_datasets,
     resolve_input_path,
     write_snapshot_hashes,
 )
-from fnb.data.acquire import DatasetSnapshot
 
 
 def _make_tree(root: Path, files: dict[str, bytes]) -> Path:
@@ -48,6 +49,23 @@ def test_hash_directory_empty_raises(tmp_path: Path):
     empty.mkdir()
     with pytest.raises(ValueError):
         hash_directory(empty)
+
+
+def test_resolve_nested_kaggle_layout(tmp_path: Path):
+    """Kaggle nested layout: /kaggle/input/datasets/<owner>/<name>/."""
+    nested = tmp_path / "datasets" / "saurabhshahane" / "fake-news-classification"
+    nested.mkdir(parents=True)
+    (nested / "WELFake_Dataset.csv").write_text("x", encoding="utf-8")
+    attached = list_input_datasets(tmp_path)
+    assert nested in attached
+    entry = {
+        "kaggle_slug": "saurabhshahane/fake-news-classification",
+        "input_dirname": "fake-news-classification",
+        "input_path": "TBD",
+        "name": "WELFake",
+    }
+    resolved = resolve_input_path("DS1", entry, tmp_path, attached)
+    assert resolved == nested
 
 
 def test_resolve_input_path_by_dirname(tmp_path: Path):

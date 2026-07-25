@@ -62,11 +62,61 @@ class DatasetSnapshot:
 
 
 def list_input_datasets(input_root: str | Path = DEFAULT_INPUT_ROOT) -> list[Path]:
-    """Return first-level directories under ``/kaggle/input`` (attached datasets)."""
+    """Return attached dataset *leaf* directories under ``/kaggle/input``.
+
+    Supports both Kaggle layouts:
+
+    * classic: ``/kaggle/input/<dataset-name>/``
+    * nested:  ``/kaggle/input/datasets/<owner>/<dataset-name>/``
+      (and similarly ``/kaggle/input/<owner>/<dataset-name>/``)
+    """
     root = Path(input_root)
     if not root.is_dir():
         return []
-    return sorted(p for p in root.iterdir() if p.is_dir())
+
+    found: list[Path] = []
+
+    def _has_files(directory: Path) -> bool:
+        return any(p.is_file() for p in directory.rglob("*") if not any(
+            part.startswith(".") for part in p.parts
+        ))
+
+    for child in sorted(root.iterdir()):
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+
+        # Nested layout: /kaggle/input/datasets/<owner>/<name>/
+        if child.name.lower() == "datasets":
+            for owner in sorted(child.iterdir()):
+                if not owner.is_dir():
+                    continue
+                for ds in sorted(owner.iterdir()):
+                    if ds.is_dir() and _has_files(ds):
+                        found.append(ds)
+            continue
+
+        # Nested without the "datasets" wrapper: /kaggle/input/<owner>/<name>/
+        subdirs = [p for p in child.iterdir() if p.is_dir()]
+        files_here = [p for p in child.iterdir() if p.is_file()]
+        if subdirs and not files_here:
+            for ds in sorted(subdirs):
+                if _has_files(ds):
+                    found.append(ds)
+            continue
+
+        # Classic: /kaggle/input/<dataset-name>/ with files inside
+        if _has_files(child):
+            found.append(child)
+
+    # De-dupe while preserving order
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for p in found:
+        key = str(p.resolve())
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+    return unique
 
 
 def _iter_files(directory: Path) -> Iterable[Path]:
@@ -107,12 +157,21 @@ def hash_directory(directory: str | Path) -> tuple[str, int, int, list[dict[str,
     return tree_digest, len(records), total_bytes, records
 
 
-def _slug_dirname(slug: str) -> str | None:
-    """Kaggle mounts ``owner/dataset-name`` at ``/kaggle/input/dataset-name``."""
+def _slug_parts(slug: str) -> tuple[str | None, str | None]:
+    """Return ``(owner, dataset_name)`` from a Kaggle slug, or ``(None, None)``."""
     slug = (slug or "").strip()
     if not slug or slug.upper() == "TBD":
-        return None
-    return slug.split("/")[-1]
+        return None, None
+    parts = slug.split("/")
+    if len(parts) >= 2:
+        return parts[0], parts[-1]
+    return None, parts[0]
+
+
+def _slug_dirname(slug: str) -> str | None:
+    """Return the dataset-name component of ``owner/dataset-name``."""
+    _, name = _slug_parts(slug)
+    return name
 
 
 def resolve_input_path(
@@ -130,23 +189,51 @@ def resolve_input_path(
 
     attached = attached if attached is not None else list_input_datasets(input_root)
     by_name = {p.name.lower(): p for p in attached}
+    by_slug = {}
+    for p in attached:
+        # Match .../<owner>/<name> against kaggle slug owner/name
+        if len(p.parts) >= 2:
+            by_slug[f"{p.parts[-2]}/{p.parts[-1]}".lower()] = p
 
-    dirname = _slug_dirname(str(entry.get("kaggle_slug") or ""))
-    if dirname and dirname.lower() in by_name:
-        return by_name[dirname.lower()]
+    slug = str(entry.get("kaggle_slug") or "")
+    owner, name = _slug_parts(slug)
 
-    # Explicit override field (optional): input_dirname
+    # Exact slug match (nested layout)
+    if owner and name:
+        key = f"{owner}/{name}".lower()
+        if key in by_slug:
+            return by_slug[key]
+        nested = input_root / "datasets" / owner / name
+        if nested.is_dir():
+            return nested
+        nested2 = input_root / owner / name
+        if nested2.is_dir():
+            return nested2
+
+    # Classic mount: /kaggle/input/<dataset-name>
+    if name and name.lower() in by_name:
+        return by_name[name.lower()]
+    if name:
+        classic = input_root / name
+        if classic.is_dir():
+            return classic
+
+    # Explicit override field
     explicit = str(entry.get("input_dirname") or "").strip()
     if explicit and explicit.lower() in by_name:
         return by_name[explicit.lower()]
 
     # Fuzzy match on hints + dataset name tokens.
     hints = list(_NAME_HINTS.get(dataset_id, []))
-    name = str(entry.get("name") or "").lower()
-    hints.extend(tok for tok in name.replace("(", " ").replace(")", " ").replace("+", " ").split() if len(tok) > 3)
+    ds_name = str(entry.get("name") or "").lower()
+    hints.extend(
+        tok
+        for tok in ds_name.replace("(", " ").replace(")", " ").replace("+", " ").split()
+        if len(tok) > 3
+    )
 
     for attached_dir in attached:
-        lowered = attached_dir.name.lower()
+        lowered = attached_dir.as_posix().lower()
         if any(h.lower() in lowered for h in hints):
             return attached_dir
     return None
@@ -293,5 +380,9 @@ def discover_report(input_root: str | Path = DEFAULT_INPUT_ROOT) -> str:
         return "\n".join(lines)
     for d in dirs:
         n_files = sum(1 for _ in _iter_files(d))
-        lines.append(f"  - {d.name}/  ({n_files} files)")
+        try:
+            rel = d.relative_to(root).as_posix()
+        except ValueError:
+            rel = str(d)
+        lines.append(f"  - {rel}/  ({n_files} files)")
     return "\n".join(lines)
