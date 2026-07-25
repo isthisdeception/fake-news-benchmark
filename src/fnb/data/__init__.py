@@ -1,4 +1,4 @@
-"""fnb.data — acquisition, binarization, preprocessing, dedup, splits, stats."""
+"""fnb.data — acquisition, binarization, preprocessing, dedup, splits, stats, xdedup."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from .preprocess import (
 )
 from .splits import SplitRunResult, create_all_splits, stratified_random_split
 from .stats import compute_dataset_stats
+from .xdedup import XDedupResult, directed_transfer_pairs, xdedup_all, xdedup_pair
 
 __all__ = [
     "BinarizeResult",
@@ -35,6 +36,7 @@ __all__ = [
     "MappingReportRow",
     "PreprocessResult",
     "SplitRunResult",
+    "XDedupResult",
     "acquire_snapshots",
     "binarize_all",
     "binarize_dataframe",
@@ -45,6 +47,7 @@ __all__ = [
     "create_all_splits",
     "dedup_all",
     "dedup_dataframe",
+    "directed_transfer_pairs",
     "discover_report",
     "hash_directory",
     "list_input_datasets",
@@ -52,4 +55,6 @@ __all__ = [
     "preprocess_all",
     "resolve_input_path",
     "stratified_random_split",
+    "xdedup_all",
+    "xdedup_pair",
 ]

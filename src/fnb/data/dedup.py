@@ -34,6 +34,22 @@ DEFAULT_OUTPUT_DIR = Path("data/processed")
 DEFAULT_REPORT_PATH = Path("results/dedup_counts.csv")
 DEFAULT_BLOCK_SIZE = 512
 
+# Shared TF-IDF settings for within-dataset near-dup (EXP-P2) and cross-dataset
+# overlap (EXP-P5). Keep identical so cosine comparisons are consistent (§4.5).
+TFIDF_NGRAM_RANGE = (1, 2)
+TFIDF_MIN_DF = 1
+TFIDF_MAX_FEATURES = 50_000
+
+
+def make_tfidf_vectorizer() -> TfidfVectorizer:
+    """Build the shared TF-IDF vectorizer used by within- and cross-dedup."""
+    return TfidfVectorizer(
+        ngram_range=TFIDF_NGRAM_RANGE,
+        min_df=TFIDF_MIN_DF,
+        max_features=TFIDF_MAX_FEATURES,
+        dtype=np.float32,
+    )
+
 
 @dataclass
 class DedupCounts:
@@ -103,12 +119,7 @@ def near_duplicate_mask(
     if n <= 1:
         return keep
 
-    vectorizer = TfidfVectorizer(
-        ngram_range=(1, 2),
-        min_df=1,
-        max_features=50_000,
-        dtype=np.float32,
-    )
+    vectorizer = make_tfidf_vectorizer()
     try:
         x = vectorizer.fit_transform(texts)
     except ValueError:
@@ -133,6 +144,46 @@ def near_duplicate_mask(
             dup_local = np.where(row >= threshold)[0]
             if dup_local.size:
                 keep[dup_local + (i + 1)] = False
+    return keep
+
+
+def across_dataset_keep_mask(
+    train_texts: list[str],
+    test_texts: list[str],
+    *,
+    threshold: float,
+    block_size: int = DEFAULT_BLOCK_SIZE,
+) -> np.ndarray:
+    """Keep-mask for TEST items vs a TRAINING corpus (EXP-P5 / §4.5).
+
+    A test item is dropped (``False``) if its TF-IDF cosine to **any** training
+    item is ≥ ``threshold``. Training-side items are never removed. Uses the
+    same vectorizer settings as :func:`near_duplicate_mask`.
+
+    Named without a ``test_`` prefix so pytest does not collect it as a test.
+    """
+    n_train = len(train_texts)
+    n_test = len(test_texts)
+    keep = np.ones(n_test, dtype=bool)
+    if n_test == 0 or n_train == 0:
+        return keep
+
+    vectorizer = make_tfidf_vectorizer()
+    try:
+        vectorizer.fit(train_texts + test_texts)
+    except ValueError:
+        # All empty / no tokens — nothing to compare; keep all test items.
+        return keep
+
+    x_train = normalize(vectorizer.transform(train_texts), norm="l2", copy=False)
+    x_test = normalize(vectorizer.transform(test_texts), norm="l2", copy=False)
+
+    for start in range(0, n_test, block_size):
+        end = min(start + block_size, n_test)
+        # (block, n_train) cosine; drop if max over train ≥ threshold
+        sims = (x_test[start:end] @ x_train.T).toarray()
+        max_sim = sims.max(axis=1) if sims.size else np.zeros(end - start)
+        keep[start:end] = max_sim < threshold
     return keep
 
 
@@ -299,6 +350,8 @@ __all__ = [
     "dedup_dataframe",
     "dedup_dataset",
     "exact_duplicate_mask",
+    "across_dataset_keep_mask",
+    "make_tfidf_vectorizer",
     "near_duplicate_mask",
     "write_dedup_counts",
 ]

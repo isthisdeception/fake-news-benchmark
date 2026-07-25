@@ -10,6 +10,7 @@ Examples:
     python scripts/run_data_pipeline.py --stage P2
     python scripts/run_data_pipeline.py --stage P3
     python scripts/run_data_pipeline.py --stage P4
+    python scripts/run_data_pipeline.py --stage P5
     python scripts/run_data_pipeline.py --stage all
 """
 
@@ -86,6 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--dataset-stats-path",
         default="results/dataset_stats.csv",
         help="Where to write EXP-P4 dataset_stats.csv.",
+    )
+    parser.add_argument(
+        "--overlap-report-path",
+        default="results/interdataset_overlap.csv",
+        help="Where to write EXP-P5 interdataset_overlap.csv.",
     )
     parser.add_argument(
         "--discover",
@@ -239,6 +245,32 @@ def _run_p4(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_p5(args: argparse.Namespace) -> int:
+    from fnb.data.xdedup import xdedup_all
+
+    results = xdedup_all(
+        processed_dir=args.output_dir,
+        splits_dir=args.splits_dir,
+        report_path=args.overlap_report_path,
+        config_dir=args.config_dir,
+    )
+    print(f"Cross-deduped {len(results)} directed pair(s) → vXDEDUP test indices")
+    for r in results:
+        c = r.counts
+        flag = " [same-source]" if c.same_source_control else ""
+        print(
+            f"  {c.train_dataset_id}→{c.test_dataset_id}: "
+            f"kept={c.n_test_after}/{c.n_test_before} "
+            f"(removed={c.n_overlap_removed}, {c.pct_removed:.2f}%; "
+            f"fake_ratio {c.fake_ratio_before:.4f}→{c.fake_ratio_after:.4f})"
+            f"{flag}"
+        )
+        if r.index_path is not None:
+            print(f"           → {r.index_path}")
+    print(f"\nWrote: {args.overlap_report_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     args = build_parser().parse_args(argv)
@@ -285,13 +317,13 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             return rc
 
-    remaining = STAGES[6:] if args.stage == "all" else [args.stage]
-    for stage in remaining:
-        if stage in ("P0", "P1a", "P1b", "P2", "P3", "P4"):
-            continue
-        raise NotImplementedError(
-            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S11)."
-        )
+    if args.stage in ("P5", "all"):
+        rc = _run_p5(args)
+        if args.stage == "P5":
+            return rc
+        if rc != 0:
+            return rc
+
     return 0
 
 
