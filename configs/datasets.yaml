@@ -61,15 +61,23 @@ datasets:
     role: "Transfer target"
     text_type: "Article (title+text)"
     in_article_transfer: true
-    # Prefer a HYDRATED Kaggle snapshot — do NOT re-crawl (§4.6).
-    kaggle_slug: "TBD"              # confirm hydrated FakeNewsNet copy together on Kaggle
-    kaggle_version: "TBD"
-    input_dirname: "TBD"
-    input_path: "TBD"
-    label_column: "TBD"
-    text_columns: { title: "TBD", body: "TBD" }
-    recovery_fraction: "TBD"        # hydrated / expected; record after inspect
-    license_note: "FakeNewsNet (KaiDMML); content via hydrated snapshot only — no redistribution beyond permitted terms"
+    # Plan B: official KaiDMML FakeNewsNet metadata CSVs (id,url,title,tweet_ids).
+    # Body text is NOT in these files; hydrate later and record recovery_fraction (§4.6).
+    # Do NOT re-crawl from scratch for reported runs — use only the frozen snapshot.
+    kaggle_slug: "isthisdeception/fakenewsnet-official"
+    kaggle_version: "1"
+    input_dirname: "fakenewsnet-official"
+    # Nested upload layout: .../fakenewsnet-official/fakenewsnet-official/*.csv
+    input_path: "/kaggle/input/datasets/isthisdeception/fakenewsnet-official"
+    label_column: "label"           # derived from filename (*_fake / *_real) in S7
+    text_columns: { title: "title", body: "TBD" }  # body filled after hydration
+    source_files:
+      - "fakenewsnet-official/politifact_fake.csv"
+      - "fakenewsnet-official/politifact_real.csv"
+      - "fakenewsnet-official/gossipcop_fake.csv"
+      - "fakenewsnet-official/gossipcop_real.csv"
+    recovery_fraction: "TBD"        # set after article-body hydration
+    license_note: "FakeNewsNet (KaiDMML / Shu et al.); official metadata snapshot isthisdeception/fakenewsnet-official; no re-crawl for reported runs"
 
   DS4:
     name: "COVID-19 Fake News"
