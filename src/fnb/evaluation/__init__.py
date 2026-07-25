@@ -12,6 +12,15 @@ from .metrics import (
     robustness_metrics,
     transfer_metrics,
 )
+from .results_io import (
+    AGGREGATE_KEYS,
+    PROVENANCE_COLUMNS,
+    ResultSchemaError,
+    aggregate_seeds,
+    make_result_row,
+    validate_result_row,
+    write_result_rows,
+)
 from .stats import (
     BootstrapDiffResult,
     ConfirmatoryComparison,
@@ -26,11 +35,15 @@ from .stats import (
 )
 
 __all__ = [
+    "AGGREGATE_KEYS",
     "PRIMARY_METRIC",
+    "PROVENANCE_COLUMNS",
     "BootstrapDiffResult",
     "ConfirmatoryComparison",
     "McNemarResult",
+    "ResultSchemaError",
     "aggregate_seed_metrics",
+    "aggregate_seeds",
     "assemble_confirmatory",
     "bh_fdr",
     "cliffs_delta",
@@ -39,9 +52,12 @@ __all__ = [
     "ece",
     "friedman_nemenyi",
     "is_ece_eligible",
+    "make_result_row",
     "mcnemar",
     "mean_std",
     "paired_bootstrap_diff",
     "robustness_metrics",
     "transfer_metrics",
+    "validate_result_row",
+    "write_result_rows",
 ]
