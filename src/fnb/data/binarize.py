@@ -223,7 +223,7 @@ def _standardize(
 
 
 def load_ds1_welfake(root: Path, entry: dict[str, Any]) -> pd.DataFrame:
-    """WELFake CSV (Zenodo / Kaggle): title, text, label with 0=fake, 1=real."""
+    """WELFake CSV (Kaggle): title, text, label; polarity via source_binary_map."""
     # Prefer the well-known filename; else first CSV under root.
     path = _find_file(root, "WELFake_Dataset.csv")
     if path is None:
@@ -474,7 +474,7 @@ def mapping_spec_for_dataset(
     if dataset_id == "DS1":
         raise ValueError(
             "DS1 requires source_binary_map in datasets.yaml "
-            "(WELFake source polarity: Zenodo 0=fake, 1=real → remap to global)"
+            "(WELFake source polarity must be set in source_binary_map)"
         )
     if dataset_id in {"DS2", "DS3"}:
         applied = f"filename→{{real={label_space['real']}, fake={label_space['fake']}}}"

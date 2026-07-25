@@ -106,15 +106,15 @@ def test_liar_binarize_dataframe_counts_and_label_set():
         assert lab == expected
 
 
-def test_welfake_polarity_inverted_to_global():
-    """Zenodo WELFake 0=fake,1=real must become global fake=1, real=0."""
+def test_welfake_polarity_matches_global():
+    """Kaggle WELFake: 0=real, 1=fake → identity into global {real=0, fake=1}."""
     entry = {
         "name": "WELFake",
-        "source_binary_map": {"fake": [0, "0"], "real": [1, "1"]},
+        "source_binary_map": {"fake": [1, "1"], "real": [0, "0"]},
     }
     token_map, applied, _ = mapping_spec_for_dataset("DS1", entry, LABEL_SPACE)
-    assert map_label(0, token_map) == 1
-    assert map_label(1, token_map) == 0
+    assert map_label(0, token_map) == 0
+    assert map_label(1, token_map) == 1
 
     raw = pd.DataFrame(
         {
@@ -135,7 +135,7 @@ def test_welfake_polarity_inverted_to_global():
         label_source="label",
         label_space=LABEL_SPACE,
     )
-    assert result.dataframe["label"].tolist() == [1, 0]
+    assert result.dataframe["label"].tolist() == [0, 1]
 
 
 def test_apply_binary_map_flags_missing_and_ambiguous():
@@ -213,7 +213,7 @@ def test_binarize_all_writes_vbin_and_report(tmp_path: Path):
                 "input_path": str(ds1),
                 "label_column": "label",
                 "text_columns": {"title": "title", "body": "text"},
-                "source_binary_map": {"fake": [0, "0"], "real": [1, "1"]},
+                "source_binary_map": {"fake": [1, "1"], "real": [0, "0"]},
                 "source_field_available": False,
                 "license_note": "test",
             },
@@ -296,7 +296,7 @@ def test_binarize_all_report_without_parquet(tmp_path: Path):
                 "input_path": str(ds1),
                 "label_column": "label",
                 "text_columns": {"title": "title", "body": "text"},
-                "source_binary_map": {"fake": [0, "0"], "real": [1, "1"]},
+                "source_binary_map": {"fake": [1, "1"], "real": [0, "0"]},
                 "source_field_available": False,
                 "license_note": "test",
             }

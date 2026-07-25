@@ -12,8 +12,8 @@
 # =============================================================================
 
 # --- Global label space (§4.3) -----------------------------------------------
-# NOTE: some source files (e.g. WELFake on Zenodo) use 0=fake / 1=real. That
-# polarity is remapped to this global space in EXP-P1a (S7), not here.
+# Global {real=0, fake=1}. Per-dataset source polarities are remapped in EXP-P1a
+# via each entry's source_binary_map (confirmed against attached files + class counts).
 label_space:
   real: 0
   fake: 1
@@ -37,12 +37,14 @@ datasets:
     input_path: "/kaggle/input/datasets/saurabhshahane/fake-news-classification"
     label_column: "label"           # WELFake_Dataset.csv: Title, Text, Label
     text_columns: { title: "title", body: "text" }
-    # Zenodo WELFake (Verma et al.): Label 0=fake, 1=real — opposite of global §4.3.
-    # Remap in EXP-P1a so global remains {real=0, fake=1}.
-    source_label_polarity: "0=fake,1=real (Zenodo WELFake)"
+    # Confirmed on attached Kaggle copy (saurabhshahane/fake-news-classification):
+    # value_counts 0→35028, 1→37106 match published 35,028 real / 37,106 fake,
+    # so source polarity is 0=real, 1=fake (same as global §4.3). Note: Zenodo
+    # README text says the opposite; class counts + this file win.
+    source_label_polarity: "0=real,1=fake (Kaggle WELFake; matches published class counts)"
     source_binary_map:
-      fake: [0, "0", "fake"]
-      real: [1, "1", "real"]
+      fake: [1, "1", "fake"]
+      real: [0, "0", "real"]
     source_field_available: false
     license_note: "CC BY-NC 4.0 (Attribution-NonCommercial); research use OK"
 
