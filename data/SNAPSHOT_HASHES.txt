@@ -1,4 +1,13 @@
 # SNAPSHOT_HASHES.txt — frozen dataset content hashes (protocol §4.6)
-# Placeholder until EXP-P0 (Step S6) is run on Kaggle over attached datasets.
-# Format after S6: DATASET_ID  SHA256  N_FILES  TOTAL_BYTES  INPUT_PATH  SLUG@VERSION
-# Raw bytes stay under /kaggle/input/; only this ledger is committed to git.
+# Generated (UTC): 2026-07-25T15:38:16+00:00
+# Format: DATASET_ID  SHA256  N_FILES  TOTAL_BYTES  INPUT_PATH  SLUG@VERSION
+# Raw bytes remain under /kaggle/input/; only this ledger is committed to git.
+#
+# Stability note: re-running EXP-P0 on the same attached Kaggle dataset versions
+# must reproduce these SHA-256 digests exactly.
+
+DS1  ea70dcaf8e9155401cfc59b58920ecb1b4ad30010fa0fc83445eeceb402098fa  1  245086152  /kaggle/input/datasets/saurabhshahane/fake-news-classification  saurabhshahane/fake-news-classification@TBD
+DS2  d4d7a8400e6c78f4abb08c18960121591ef069d4703f3b277ff5113fd4f774f5  2  116372816  /kaggle/input/datasets/clmentbisaillon/fake-and-real-news-dataset  clmentbisaillon/fake-and-real-news-dataset@TBD
+DS3  d9bf2ffdba0e8230635d1b1e2df8122ad9426030ad91a8f11337973f8b8d2c70  4  44081906  /kaggle/input/datasets/isthisdeception/fakenewsnet-official  isthisdeception/fakenewsnet-official@1
+DS4  0912292bfa55e2e138e237e2ec1954a3043adbc88672327ff836c7250962dd54  3  2091301  /kaggle/input/datasets/isthisdeception/covid19-fake-news  isthisdeception/covid19-fake-news@1
+DS5  ac43a4f49afea072dd890c040d2a7fdba22d95a45be8423c4174e08da3b5561a  4  3012509  /kaggle/input/datasets/isthisdeception/liar-dataset  isthisdeception/liar-dataset@1
