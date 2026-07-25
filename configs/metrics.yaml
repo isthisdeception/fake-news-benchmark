@@ -19,8 +19,9 @@ core:
   aggregation: "mean_std_across_seeds"   # never best-run-only
 
 # --- Calibration: ECE (§8) ----------------------------------------------------
+# Bin count is the frozen source for fnb.evaluation.metrics.ece (default n_bins).
 ece:
-  bins: 15
+  bins: 15                              # [FROZEN] protocol §8
   probabilistic_models_only: true
   probability_source:
     transformers: "softmax"

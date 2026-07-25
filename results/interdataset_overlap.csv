@@ -1,0 +1,10 @@
+train_dataset_id,test_dataset_id,threshold,side_removed,n_train,n_test_before,n_overlap_removed,n_test_after,pct_removed,n_real_before,n_fake_before,fake_ratio_before,n_real_after,n_fake_after,fake_ratio_after,version_tag,same_source_control,notes
+DS1,DS2,0.9,test,62455,38704,38703,1,99.9974,20868,17836,0.460831,0,1,1.0,vXDEDUP,True,WELFake↔ISOT same-source control (share Reuters real news; W10) — residual test size and class balance after removal
+DS1,DS3,0.9,test,62455,21664,0,21664,0.0,16360,5304,0.24483,16360,5304,0.24483,vXDEDUP,False,
+DS2,DS1,0.9,test,38704,62455,38717,23738,61.9918,34443,28012,0.448515,13573,10165,0.428216,vXDEDUP,True,WELFake↔ISOT same-source control (share Reuters real news; W10) — residual test size and class balance after removal
+DS2,DS3,0.9,test,38704,21664,0,21664,0.0,16360,5304,0.24483,16360,5304,0.24483,vXDEDUP,False,
+DS3,DS1,0.9,test,21664,62455,0,62455,0.0,34443,28012,0.448515,34443,28012,0.448515,vXDEDUP,False,
+DS3,DS2,0.9,test,21664,38704,0,38704,0.0,20868,17836,0.460831,20868,17836,0.460831,vXDEDUP,False,
+DS1,DS4,0.9,test,62455,10229,0,10229,0.0,5420,4809,0.470134,5420,4809,0.470134,vXDEDUP,False,domain-shift probe target (EXP-A2)
+DS2,DS4,0.9,test,38704,10229,0,10229,0.0,5420,4809,0.470134,5420,4809,0.470134,vXDEDUP,False,domain-shift probe target (EXP-A2)
+DS3,DS4,0.9,test,21664,10229,0,10229,0.0,5420,4809,0.470134,5420,4809,0.470134,vXDEDUP,False,domain-shift probe target (EXP-A2)
