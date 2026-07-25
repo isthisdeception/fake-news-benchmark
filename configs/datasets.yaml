@@ -34,7 +34,7 @@ datasets:
     kaggle_slug: "saurabhshahane/fake-news-classification"
     kaggle_version: "TBD"          # pin after attach, e.g. "3"
     input_dirname: "fake-news-classification"
-    input_path: "TBD"               # resolved by acquire → /kaggle/input/<dirname>
+    input_path: "/kaggle/input/datasets/saurabhshahane/fake-news-classification"
     label_column: "label"           # confirm after inspect; often Label/label
     text_columns: { title: "title", body: "text" }
     # WELFake source polarity is often 0=fake, 1=real (Zenodo); remap in S7.
@@ -50,7 +50,7 @@ datasets:
     kaggle_slug: "clmentbisaillon/fake-and-real-news-dataset"
     kaggle_version: "TBD"
     input_dirname: "fake-and-real-news-dataset"
-    input_path: "TBD"
+    input_path: "/kaggle/input/datasets/clmentbisaillon/fake-and-real-news-dataset"
     label_column: "label"           # often derived from True.csv / Fake.csv filenames
     text_columns: { title: "title", body: "text" }
     source_field_available: "subject"   # ISOT has a subject column; not a publisher id
@@ -89,13 +89,20 @@ datasets:
     role: "Hard short-statement control (analyzed separately)"
     text_type: "Short statement"
     in_article_transfer: false
-    kaggle_slug: "mrisdal/liar-dataset"
-    kaggle_version: "TBD"
+    # Plan B: official LIAR zip uploaded as a private Kaggle dataset by the project owner.
+    kaggle_slug: "isthisdeception/liar-dataset"
+    kaggle_version: "1"            # confirm on dataset page; bump if you re-upload
     input_dirname: "liar-dataset"
-    input_path: "TBD"
-    label_column: "label"           # 6-way; mapped in S7
-    text_columns: { statement: "statement" }
-    license_note: "Publicly available (Wang 2017 LIAR); research use"
+    input_path: "/kaggle/input/datasets/isthisdeception/liar-dataset"
+    label_column: "label"           # column 2 in the TSV (no header in official LIAR)
+    text_columns: { statement: "statement" }  # column 3 in the TSV
+    tsv_files: ["train.tsv", "valid.tsv", "test.tsv"]
+    tsv_has_header: false
+    # Official LIAR TSV columns (Wang 2017):
+    # id, label, statement, subject, speaker, job_title, state_info, party,
+    # barely_true_counts, false_counts, half_true_counts, mostly_true_counts,
+    # pants_on_fire_counts, context
+    license_note: "Public LIAR (Wang 2017 ACL); uploaded snapshot isthisdeception/liar-dataset for reproducibility"
     liar_binary_map:
       fake: ["pants-fire", "false", "barely-true"]
       real: ["half-true", "mostly-true", "true"]
