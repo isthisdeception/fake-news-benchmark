@@ -2,12 +2,14 @@
 
 Does **not** use ``transformers.Trainer``. Forward returns per-window logits;
 document-level predictions mean-pool **logits** (not probabilities) across
-windows sharing the same ``doc_idx``.
+windows sharing the same ``doc_idx``. Softmax is applied **after** pooling
+(identical path for validation and test inference).
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader, Dataset
 
 from fnb.config import load_config
 
@@ -133,10 +136,112 @@ def build_encoder(
     return EncoderClassifier(name, num_labels=num_labels, pretrained=pretrained)
 
 
+@dataclass(frozen=True)
+class EncoderPredictResult:
+    """Per-document predictions after mean-pooling window logits."""
+
+    doc_idx: np.ndarray  # [n_docs] sorted document ids
+    y_pred: np.ndarray  # [n_docs]
+    y_prob: np.ndarray  # [n_docs, n_classes] softmax over pooled logits
+    logits: np.ndarray  # [n_docs, n_classes] mean-pooled logits
+
+
+def _forward_window_logits(
+    model: nn.Module,
+    loader: DataLoader,
+    *,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Run ``model`` over a window loader; return ``(logits, doc_idx)`` on CPU."""
+    model.eval()
+    all_logits: list[torch.Tensor] = []
+    all_docs: list[torch.Tensor] = []
+    with torch.no_grad():
+        for batch in loader:
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            doc_idx = batch["doc_idx"].to(device)
+            out = model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = out["logits"] if isinstance(out, dict) else out
+            all_logits.append(logits.detach().cpu())
+            all_docs.append(doc_idx.detach().cpu())
+    if not all_logits:
+        empty_logits = torch.zeros((0, 2), dtype=torch.float32)
+        empty_docs = torch.zeros((0,), dtype=torch.long)
+        return empty_logits, empty_docs
+    return torch.cat(all_logits, dim=0), torch.cat(all_docs, dim=0)
+
+
+def predict_from_loader(
+    model: nn.Module,
+    loader: DataLoader,
+    *,
+    device: str | torch.device | None = None,
+) -> EncoderPredictResult:
+    """Document-level ``(y_pred, y_prob)`` from a window ``DataLoader``.
+
+    Pools **logits** per ``doc_idx`` (same helper as training validation), then
+    applies softmax. Never pools probabilities.
+    """
+    dev = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    model = model.to(dev)
+    logits, docs = _forward_window_logits(model, loader, device=dev)
+    if logits.shape[0] == 0:
+        return EncoderPredictResult(
+            doc_idx=np.zeros((0,), dtype=np.int64),
+            y_pred=np.zeros((0,), dtype=np.int64),
+            y_prob=np.zeros((0, 2), dtype=np.float64),
+            logits=np.zeros((0, 2), dtype=np.float64),
+        )
+    unique_docs, pooled = mean_pool_logits_by_doc(logits, docs)
+    probs = F.softmax(pooled, dim=-1)
+    y_pred = pooled.argmax(dim=-1)
+    return EncoderPredictResult(
+        doc_idx=unique_docs.numpy().astype(np.int64, copy=False),
+        y_pred=y_pred.numpy().astype(np.int64, copy=False),
+        y_prob=probs.numpy().astype(np.float64, copy=False),
+        logits=pooled.numpy().astype(np.float64, copy=False),
+    )
+
+
+def predict(
+    model: nn.Module,
+    dataset: Dataset,
+    *,
+    batch_size: int = 16,
+    device: str | torch.device | None = None,
+    collate_fn: Any | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Predict per document from a :class:`WindowedTextDataset` (or compatible).
+
+    Returns
+    -------
+    y_pred, y_prob
+        ``y_pred`` shape ``[n_docs]``; ``y_prob`` shape ``[n_docs, n_classes]``
+        (softmax over **mean-pooled logits**). Document order follows sorted
+        ``doc_idx`` (0..n-1 when the dataset covers all documents).
+    """
+    if collate_fn is None:
+        from fnb.training.datasets import collate_windows
+
+        collate_fn = collate_windows
+    loader = DataLoader(
+        dataset,
+        batch_size=int(batch_size),
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
+    result = predict_from_loader(model, loader, device=device)
+    return result.y_pred, result.y_prob
+
+
 __all__ = [
     "EncoderClassifier",
+    "EncoderPredictResult",
     "build_encoder",
     "inverse_frequency_class_weights",
     "mean_pool_logits_by_doc",
+    "predict",
+    "predict_from_loader",
     "resolve_encoder_name",
 ]

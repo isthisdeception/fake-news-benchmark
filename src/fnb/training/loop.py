@@ -28,7 +28,7 @@ from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader
 
 from fnb.config import load_config, load_config_raw
-from fnb.models.encoder import inverse_frequency_class_weights, mean_pool_logits_by_doc
+from fnb.models.encoder import inverse_frequency_class_weights, predict_from_loader
 from fnb.training.early_stopping import EarlyStopping
 from fnb.training.scheduler import build_warmup_cosine_scheduler
 from fnb.utils.seeding import set_global_seed
@@ -82,36 +82,20 @@ def evaluate_macro_f1(
     *,
     device: torch.device,
 ) -> float:
-    """Validation macro-F1 with mean-pooled window logits per document."""
-    model.eval()
-    all_logits: list[torch.Tensor] = []
-    all_docs: list[torch.Tensor] = []
-    all_labels: list[torch.Tensor] = []
-
+    """Validation macro-F1 via the shared :func:`predict_from_loader` path (§6.1)."""
+    # Collect one gold label per document (windows of a doc share the label).
+    doc_to_label: dict[int, int] = {}
     for batch in loader:
-        batch = _move_batch(batch, device)
-        out = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-        logits = out["logits"] if isinstance(out, dict) else out
-        all_logits.append(logits.detach().cpu())
-        all_docs.append(batch["doc_idx"].detach().cpu())
-        all_labels.append(batch["labels"].detach().cpu())
+        docs = batch["doc_idx"].detach().cpu().tolist()
+        labs = batch["labels"].detach().cpu().tolist()
+        for d, lab in zip(docs, labs, strict=True):
+            doc_to_label.setdefault(int(d), int(lab))
 
-    if not all_logits:
+    pred = predict_from_loader(model, loader, device=device)
+    if pred.doc_idx.size == 0:
         return float("nan")
-
-    logits = torch.cat(all_logits, dim=0)
-    docs = torch.cat(all_docs, dim=0)
-    labels = torch.cat(all_labels, dim=0)
-
-    unique_docs, pooled = mean_pool_logits_by_doc(logits, docs)
-    # One label per document (windows of a doc share the same label)
-    doc_labels = []
-    for d in unique_docs.tolist():
-        mask = docs == d
-        doc_labels.append(int(labels[mask][0].item()))
-    y_true = np.asarray(doc_labels, dtype=int)
-    y_pred = pooled.argmax(dim=-1).numpy()
-    return float(f1_score(y_true, y_pred, average="macro", zero_division=0))
+    y_true = np.asarray([doc_to_label[int(d)] for d in pred.doc_idx], dtype=int)
+    return float(f1_score(y_true, pred.y_pred, average="macro", zero_division=0))
 
 
 def train(

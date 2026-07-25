@@ -1,19 +1,27 @@
-"""Tests for encoder sliding-window tokenization (S17 / protocol §6.1)."""
+"""Tests for encoder sliding-window tokenization + predict pooling (S17/S19)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
+import pytest
 import torch
+import torch.nn as nn
 import yaml
+from torch.utils.data import DataLoader
 
+from fnb.models.encoder import mean_pool_logits_by_doc, predict, predict_from_loader
 from fnb.training.datasets import (
     WindowedTextDataset,
+    collate_windows,
     expected_num_windows,
     load_sequence_params,
     sliding_window_spans,
     tokenize_document_windows,
 )
+from fnb.training.loop import evaluate_macro_f1
+from fnb.utils.seeding import set_global_seed
 
 
 class _StubTokenizer:
@@ -194,3 +202,91 @@ def test_title_only_dataset_mode(tmp_path: Path):
     )
     assert len(ds) == 1
     assert ds[0]["input_ids"].numel() == 64
+
+
+# --- S19: predict + window logit pooling -------------------------------------
+
+
+class _TinyEncoder(nn.Module):
+    def __init__(self, vocab_size: int = 8000, hidden: int = 16, num_labels: int = 2) -> None:
+        super().__init__()
+        self.emb = nn.Embedding(vocab_size, hidden, padding_idx=0)
+        self.fc = nn.Linear(hidden, num_labels)
+
+    def forward(self, input_ids, attention_mask=None, labels=None):
+        if attention_mask is None:
+            attention_mask = (input_ids != 0).long()
+        mask = attention_mask.unsqueeze(-1).float()
+        h = self.emb(input_ids)
+        pooled = (h * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1.0)
+        return {"logits": self.fc(pooled)}
+
+
+def test_pooled_logit_equals_mean_of_window_logits():
+    # k=3 windows for one document → pooled == mean
+    window_logits = torch.tensor(
+        [[1.0, 0.0], [3.0, 2.0], [5.0, 4.0]],
+        dtype=torch.float32,
+    )
+    docs = torch.tensor([7, 7, 7], dtype=torch.long)
+    unique, pooled = mean_pool_logits_by_doc(window_logits, docs)
+    assert unique.tolist() == [7]
+    assert pooled[0].tolist() == pytest.approx(
+        window_logits.mean(dim=0).tolist()
+    )
+
+
+def test_predict_probs_sum_to_one_and_matches_val_path(tmp_path: Path):
+    cfg_dir = tmp_path / "configs"
+    _write_encoder_config(cfg_dir)
+    tok = _StubTokenizer()
+    texts = [
+        "short real news",
+        " ".join([f"longfake{i}" for i in range(600)]),
+    ]
+    labels = [0, 1]
+    ds = WindowedTextDataset(texts, labels, tok, config_dir=cfg_dir)
+    assert len(ds.windows_for_doc(1)) > 1
+
+    set_global_seed(42)
+    model = _TinyEncoder()
+    y_pred, y_prob = predict(model, ds, batch_size=4, device="cpu")
+    assert y_pred.shape == (2,)
+    assert y_prob.shape == (2, 2)
+    np.testing.assert_allclose(y_prob.sum(axis=1), np.ones(2), atol=1e-6)
+
+    loader = DataLoader(ds, batch_size=4, shuffle=False, collate_fn=collate_windows)
+    from_loader = predict_from_loader(model, loader, device="cpu")
+    np.testing.assert_array_equal(y_pred, from_loader.y_pred)
+    np.testing.assert_allclose(y_prob, from_loader.y_prob, atol=1e-6)
+
+    # Same argmax path as training validation
+    f1 = evaluate_macro_f1(model, loader, device=torch.device("cpu"))
+    assert 0.0 <= f1 <= 1.0
+    # Manual F1 from predict matches evaluate_macro_f1
+    from sklearn.metrics import f1_score
+
+    f1_manual = f1_score(labels, y_pred, average="macro", zero_division=0)
+    assert f1 == pytest.approx(f1_manual)
+
+
+def test_predict_deterministic_under_fixed_seed(tmp_path: Path):
+    cfg_dir = tmp_path / "configs"
+    _write_encoder_config(cfg_dir)
+    tok = _StubTokenizer()
+    texts = ["alpha beta gamma", " ".join([f"w{i}" for i in range(400)])]
+    ds = WindowedTextDataset(texts, [0, 1], tok, config_dir=cfg_dir)
+
+    def _run(seed: int):
+        set_global_seed(seed)
+        model = _TinyEncoder()
+        # Freeze weights after seeded init
+        return predict(model, ds, batch_size=2, device="cpu")
+
+    a_pred, a_prob = _run(13)
+    b_pred, b_prob = _run(13)
+    c_pred, c_prob = _run(99)
+    np.testing.assert_array_equal(a_pred, b_pred)
+    np.testing.assert_allclose(a_prob, b_prob, atol=1e-7)
+    # Different seed → different init → typically different probs
+    assert not np.allclose(a_prob, c_prob) or not np.array_equal(a_pred, c_pred)
