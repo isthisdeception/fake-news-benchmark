@@ -1,7 +1,8 @@
-"""Tests for EXP-P1a binarization (and later EXP-P1b preprocessing cases)."""
+"""Tests for EXP-P1a binarization and EXP-P1b preprocessing."""
 
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 
 import pandas as pd
@@ -17,6 +18,20 @@ from fnb.data.binarize import (
     map_label,
     mapping_spec_for_dataset,
     normalize_label_token,
+)
+from fnb.data.preprocess import (
+    apply_steps,
+    clean_text_classical,
+    clean_text_neural,
+    get_nltk_resource_info,
+    preprocess_dataframe,
+    step_lowercase,
+    step_remove_hashtags,
+    step_remove_html,
+    step_remove_mentions,
+    step_remove_symbols,
+    step_remove_urls,
+    step_unicode_nfc,
 )
 
 LABEL_SPACE = {"real": 0, "fake": 1}
@@ -356,3 +371,148 @@ def test_global_label_space_enforced():
             fake_tokens=["fake"],
             real_tokens=["real"],
         )
+
+
+# --------------------------------------------------------------------------- #
+# EXP-P1b — dual-track preprocessing
+# --------------------------------------------------------------------------- #
+
+
+def test_step_unicode_nfc():
+    # Combining accent → precomposed
+    decomposed = "cafe\u0301"
+    out = step_unicode_nfc(decomposed)
+    assert out == unicodedata.normalize("NFC", decomposed)
+    assert len(out) == 4
+
+
+def test_step_lowercase():
+    assert step_lowercase("AbC Def") == "abc def"
+
+
+def test_step_remove_urls_and_html():
+    s = "See https://example.com/a and <b>bold</b> www.test.org/x"
+    no_url = step_remove_urls(s)
+    assert "https://" not in no_url and "www.test" not in no_url
+    no_html = step_remove_html("Hello <b>world</b> &amp; friends")
+    assert "<b>" not in no_html
+    assert "world" in no_html
+    assert "&" in no_html or "friends" in no_html
+
+
+def test_step_mentions_hashtags_symbols():
+    s = "Hi @Alice check #FakeNews !!! worth $100"
+    assert "@Alice" not in step_remove_mentions(s)
+    assert "#FakeNews" not in step_remove_hashtags(s)
+    cleaned = step_remove_symbols("hello, world!!!")
+    assert "," not in cleaned and "!" not in cleaned
+    assert "hello" in cleaned and "world" in cleaned
+
+
+def test_classical_track_full_pipeline_crafted():
+    raw = "The Cats are Running to https://x.com @bob #news <i>NOW</i>!!!"
+    # Use explicit classical steps (avoid depending on YAML path in isolation)
+    steps = [
+        "unicode_nfc",
+        "lowercase",
+        "remove_urls",
+        "remove_html",
+        "remove_mentions",
+        "remove_hashtags",
+        "remove_symbols",
+        "nltk_stopword_removal",
+        "wordnet_lemmatization",
+    ]
+    out = apply_steps(raw, steps)
+    assert "https://" not in out
+    assert "@bob" not in out
+    assert "#news" not in out
+    assert "<i>" not in out
+    assert out == out.lower()
+    # stopwords like "the"/"are"/"to" removed; lemmatize cats→cat, running→running
+    # (WordNet default POS=noun: running stays; cats→cat)
+    assert "the" not in out.split()
+    assert "cat" in out.split() or "cats" in out.split()
+
+
+def test_neural_track_preserves_case_and_stopwords():
+    raw = "The Cats are Running to https://x.com <b>NOW</b>"
+    steps = ["unicode_nfc", "remove_urls", "remove_html", "model_native_subword_tokenization"]
+    out = apply_steps(raw, steps)
+    assert "The" in out  # case preserved
+    assert "are" in out  # stopword preserved
+    assert "https://" not in out
+    assert "<b>" not in out
+    assert "NOW" in out
+
+
+def test_clean_text_helpers_match_config_tracks():
+    sample = "The Quick Brown Fox visits https://ex.com"
+    classical = clean_text_classical(sample)
+    neural = clean_text_neural(sample)
+    assert classical == classical.lower()
+    assert "the" not in classical.split()
+    assert "The" in neural or "Quick" in neural  # case kept
+    assert "https://" not in classical and "https://" not in neural
+
+
+def test_neural_track_rejects_stopword_steps():
+    df = pd.DataFrame(
+        {
+            "dataset_id": ["DS1"],
+            "uid": ["u0"],
+            "title": ["Hello"],
+            "text": ["The world"],
+            "label": [0],
+        }
+    )
+    with pytest.raises(ValueError):
+        preprocess_dataframe(
+            df,
+            track="neural",
+            steps=["unicode_nfc", "nltk_stopword_removal"],
+            version_tag="vCLEAN-N",
+            dataset_id="DS1",
+        )
+
+
+def test_preprocess_dataframe_preserves_labels():
+    df = pd.DataFrame(
+        {
+            "dataset_id": ["DS1", "DS1"],
+            "uid": ["u0", "u1"],
+            "title": ["Title ONE", "Title TWO"],
+            "text": ["The cats run.", "Dogs are Running!"],
+            "label": [0, 1],
+            "label_raw": [0, 1],
+            "source_file": ["x", "x"],
+        }
+    )
+    classical_steps = [
+        "unicode_nfc",
+        "lowercase",
+        "remove_urls",
+        "remove_html",
+        "remove_mentions",
+        "remove_hashtags",
+        "remove_symbols",
+        "nltk_stopword_removal",
+        "wordnet_lemmatization",
+    ]
+    result = preprocess_dataframe(
+        df,
+        track="classical",
+        steps=classical_steps,
+        version_tag="vCLEAN-C",
+        dataset_id="DS1",
+    )
+    assert result.dataframe["label"].tolist() == [0, 1]
+    assert result.n_rows == 2
+    assert result.dataframe["text"].iloc[0] == result.dataframe["text"].iloc[0].lower()
+
+
+def test_nltk_resource_info_has_versions():
+    info = get_nltk_resource_info()
+    assert "nltk_version" in info
+    assert info["stopwords"]["n_words"] > 0
+    assert info["download_date"]

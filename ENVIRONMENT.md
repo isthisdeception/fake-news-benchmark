@@ -101,3 +101,20 @@ if torch.cuda.is_available():
 nvidia-smi
 pip freeze > requirements.lock.txt   # commit this back into the repo
 ```
+
+---
+
+## 5. NLTK resources (EXP-P1b / protocol §6 classical track)
+
+Recorded automatically by `fnb.data.preprocess.write_nltk_versions` when running
+`--stage P1b`. Authoritative JSON copy: `results/nltk_resource_versions.json`.
+
+| Item | Value |
+|---|---|
+| NLTK package version | <!-- NLTK_VERSION --> |
+| Stopwords / WordNet download date | <!-- NLTK_DOWNLOAD_DATE --> |
+| English stopwords count | <!-- NLTK_STOPWORDS_N --> |
+| WordNet synset count (fingerprint) | <!-- NLTK_WORDNET_SYNSETS --> |
+
+Classical track uses NLTK English stopwords + WordNet lemmatizer. Neural track does
+**not** use stopword removal or lemmatization.

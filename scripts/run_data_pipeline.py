@@ -6,6 +6,7 @@ Examples:
     python scripts/run_data_pipeline.py --stage P0
     python scripts/run_data_pipeline.py --stage P0 --discover
     python scripts/run_data_pipeline.py --stage P1a
+    python scripts/run_data_pipeline.py --stage P1b
     python scripts/run_data_pipeline.py --stage all
 """
 
@@ -131,6 +132,30 @@ def _run_p1a(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_p1b(args: argparse.Namespace) -> int:
+    from fnb.data.preprocess import preprocess_all
+
+    results = preprocess_all(
+        processed_dir=args.output_dir,
+        output_dir=args.output_dir,
+        config_dir=args.config_dir,
+        dataset_ids=args.datasets,
+        nltk_report_path="results/nltk_resource_versions.json",
+        environment_md="ENVIRONMENT.md",
+    )
+    # Pair classical/neural per dataset for readable logging
+    by_ds: dict[str, list] = {}
+    for r in results:
+        by_ds.setdefault(r.dataset_id, []).append(r)
+    print(f"Preprocessed {len(by_ds)} dataset(s) → vCLEAN-C + vCLEAN-N")
+    for ds_id, tracks in by_ds.items():
+        for r in tracks:
+            path = r.output_path if r.output_path is not None else "?"
+            print(f"  {ds_id} {r.version_tag}: n={r.n_rows} → {path}")
+    print("\nWrote: results/nltk_resource_versions.json")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     args = build_parser().parse_args(argv)
@@ -149,12 +174,19 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             return rc
 
-    remaining = STAGES[2:] if args.stage == "all" else [args.stage]
+    if args.stage in ("P1b", "all"):
+        rc = _run_p1b(args)
+        if args.stage == "P1b":
+            return rc
+        if rc != 0:
+            return rc
+
+    remaining = STAGES[3:] if args.stage == "all" else [args.stage]
     for stage in remaining:
-        if stage in ("P0", "P1a"):
+        if stage in ("P0", "P1a", "P1b"):
             continue
         raise NotImplementedError(
-            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S7)."
+            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S8)."
         )
     return 0
 
