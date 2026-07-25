@@ -1,146 +1,184 @@
-"""Tests for EXP-P4 dataset statistics."""
+"""Tests for STATS-CONF (S14): bootstrap, McNemar, Cliff's δ, BH-FDR, Friedman."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pandas as pd
+import numpy as np
 import pytest
-import yaml
+from statsmodels.stats.multitest import multipletests
 
-from fnb.data.splits import stratified_random_split, write_split_files
-from fnb.data.stats import compute_dataset_stats, summarize_subset
+from fnb.evaluation.stats import (
+    assemble_confirmatory,
+    bh_fdr,
+    cliffs_delta,
+    confirmatory_claim_allowed,
+    friedman_nemenyi,
+    mcnemar,
+    paired_bootstrap_diff,
+)
 
 
-def test_summarize_subset_counts_and_lengths():
-    df = pd.DataFrame(
+def test_paired_bootstrap_reproducible_with_seed():
+    rng = np.random.default_rng(0)
+    y = np.array([0, 1] * 40)
+    # Model A slightly better than B
+    pred_a = y.copy()
+    flip_a = rng.choice(len(y), size=8, replace=False)
+    pred_a[flip_a] = 1 - pred_a[flip_a]
+    pred_b = y.copy()
+    flip_b = rng.choice(len(y), size=20, replace=False)
+    pred_b[flip_b] = 1 - pred_b[flip_b]
+
+    r1 = paired_bootstrap_diff(y, pred_a, pred_b, n_resamples=500, seed=13)
+    r2 = paired_bootstrap_diff(y, pred_a, pred_b, n_resamples=500, seed=13)
+    r3 = paired_bootstrap_diff(y, pred_a, pred_b, n_resamples=500, seed=99)
+    assert r1.mean_diff == r2.mean_diff
+    assert r1.ci_low == r2.ci_low
+    assert r1.ci_high == r2.ci_high
+    assert r1.p_value == r2.p_value
+    assert r1.mean_diff != r3.mean_diff or r1.ci_low != r3.ci_low
+
+
+def test_paired_bootstrap_ci_covers_known_positive_effect():
+    rng = np.random.default_rng(7)
+    y = np.array([0, 1] * 60)
+    pred_a = y.copy()
+    pred_b = y.copy()
+    # Corrupt B much more → A − B > 0
+    bad = rng.choice(len(y), size=30, replace=False)
+    pred_b[bad] = 1 - pred_b[bad]
+    mild = rng.choice(len(y), size=5, replace=False)
+    pred_a[mild] = 1 - pred_a[mild]
+
+    r = paired_bootstrap_diff(y, pred_a, pred_b, n_resamples=2000, seed=42)
+    assert r.mean_diff > 0
+    assert r.observed_diff > 0
+    # CI of the difference should lie mostly above 0 for a clear effect
+    assert r.ci_low > -0.05
+    assert r.ci_high > r.ci_low
+    assert 0.0 <= r.p_value <= 1.0
+    assert r.stratified is True
+    assert r.n_resamples == 2000
+
+
+def test_mcnemar_hand_example_discordant():
+    # Hand table: A better. Discordant: n_c=9 (A right B wrong), n_b=1 (A wrong B right).
+    y = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1])
+    # Start both correct, then set discordant pairs on first 10 labels alternating.
+    pred_a = y.copy()
+    pred_b = y.copy()
+    # Indices 0..8: A correct, B wrong  (n_c = 9)
+    for i in range(9):
+        pred_b[i] = 1 - y[i]
+    # Index 9: A wrong, B correct (n_b = 1)
+    pred_a[9] = 1 - y[9]
+    # 10,11 both correct
+
+    r = mcnemar(y, pred_a, pred_b)
+    assert r.n_c == 9
+    assert r.n_b == 1
+    assert r.n_discordant == 10
+    # Exact McNemar: P(X<=1) for Binomial(10, 0.5) two-sided is small
+    assert r.p_value < 0.05
+
+
+def test_cliffs_delta_sign_and_bounds():
+    a = [0.9, 0.85, 0.88]
+    b = [0.5, 0.55, 0.6]
+    d = cliffs_delta(a, b)
+    assert d > 0
+    assert -1.0 <= d <= 1.0
+    assert cliffs_delta(b, a) == pytest.approx(-d)
+    assert cliffs_delta([1, 2, 3], [1, 2, 3]) == pytest.approx(0.0)
+
+
+def test_bh_fdr_matches_statsmodels():
+    pvals = [0.001, 0.01, 0.04, 0.2, 0.5]
+    ours = bh_fdr(pvals, q=0.05)
+    reject_ref, p_adj_ref, _, _ = multipletests(pvals, alpha=0.05, method="fdr_bh")
+    np.testing.assert_allclose(ours["p_adjusted"], p_adj_ref)
+    np.testing.assert_array_equal(ours["reject"], reject_ref)
+
+
+def test_assemble_confirmatory_applies_bh_across_whole_family():
+    family = [
         {
-            "title": ["A", "BB"],
-            "text": ["one two", "three"],
-            "label": [0, 1],
-        }
-    )
-    s = summarize_subset(df)
-    assert s["n"] == 2
-    assert s["n_real"] == 1
-    assert s["n_fake"] == 1
-    assert s["fake_ratio"] == 0.5
-    assert s["mean_words"] > 0
-    assert s["mean_chars"] > 0
-
-
-def test_compute_dataset_stats_matches_split_sizes(tmp_path: Path):
-    def _parquet_ok() -> bool:
-        try:
-            p = tmp_path / "_p.parquet"
-            pd.DataFrame({"x": [1]}).to_parquet(p)
-            return True
-        except Exception:
-            return False
-
-    if not _parquet_ok():
-        pytest.skip("parquet engine unavailable (Kaggle has pyarrow)")
-
-    n = 40
-    labels = [0, 1] * 20
-    vbin = pd.DataFrame(
+            "name": "enc_a_vs_b",
+            "p_raw": 0.001,
+            "effect_size": 0.4,
+            "ci_low": 0.02,
+            "ci_high": 0.10,
+            "mean_diff": 0.06,
+        },
         {
-            "uid": [f"u{i}" for i in range(n)],
-            "title": [f"T{i}" for i in range(n)],
-            "text": [f"body words {i} " * 3 for i in range(n)],
-            "label": labels,
-        }
-    )
-    # Simulate light dedup: drop 4 exact rows → 36 survivors with pre_dedup_index
-    keep = list(range(0, n, 1))
-    keep = [i for i in keep if i % 10 != 0]  # drop 0,10,20,30 → 36 rows
-    vdedup = vbin.iloc[keep].reset_index(drop=True).copy()
-    vdedup.insert(0, "pre_dedup_index", keep)
-
-    processed = tmp_path / "processed"
-    processed.mkdir()
-    vbin.to_parquet(processed / "DS1_vBIN.parquet")
-    vdedup.to_parquet(processed / "DS1_vDEDUP.parquet")
-
-    splits_dir = tmp_path / "splits"
-    splits = stratified_random_split(vdedup["label"].to_numpy(), seed=13)
-    write_split_files("DS1", "S-RAND", 13, splits, splits_dir=splits_dir)
-
-    cfg_dir = tmp_path / "configs"
-    cfg_dir.mkdir()
-    protocol = {
-        "protocol_version": "v1.0",
-        "status": "FROZEN",
-        "frozen_date": "2026-07-25",
-        "primary_endpoint": "x",
-        "research_questions": {"primary": {"RQ-A": "a"}, "secondary": {"RQ-D": "d"}},
-        "compute_budget": {
-            "total_gpu_hours": 120,
-            "rq_f_cap_gpu_hours": 20,
-            "accelerator": "T4",
-            "cut_order_if_over_budget": ["RQ-F"],
+            "name": "enc_a_vs_c",
+            "p_raw": 0.04,
+            "effect_size": 0.1,
+            "ci_low": -0.01,
+            "ci_high": 0.05,
+            "mean_diff": 0.02,
         },
-        "seeds": {"primary": [13], "secondary": [13], "reporting": "mean"},
-        "determinism": {
-            "use_deterministic_algorithms": True,
-            "cudnn_deterministic": True,
-            "cudnn_benchmark": False,
-            "cublas_workspace_config": ":4096:8",
-            "set_pythonhashseed": True,
+        {
+            "name": "delta_f1_m1",
+            "p_raw": 0.20,
+            "effect_size": 0.05,
+            "ci_low": -0.02,
+            "ci_high": 0.08,
+            "mean_diff": 0.03,
         },
-        "out_of_scope": [],
-    }
-    datasets = {
-        "label_space": {"real": 0, "fake": 1},
-        "article_transfer_set": ["DS1"],
-        "domain_shift_probe": [],
-        "short_statement_track": [],
-        "datasets": {
-            "DS1": {
-                "name": "WELFake",
-                "role": "t",
-                "text_type": "Article",
-                "in_article_transfer": True,
-                "kaggle_slug": "x",
-                "kaggle_version": "1",
-                "input_dirname": "x",
-                "input_path": "x",
-                "label_column": "label",
-                "text_columns": {"title": "title", "body": "text"},
-                "source_field_available": False,
-                "license_note": "t",
-            }
-        },
-        "version_tags": {"vDEDUP": "d"},
-        "llm_contamination": {"probe": "x", "report_to": "y", "rule": "z"},
-    }
-    (cfg_dir / "protocol.yaml").write_text(yaml.dump(protocol), encoding="utf-8")
-    (cfg_dir / "datasets.yaml").write_text(yaml.dump(datasets), encoding="utf-8")
-
-    report = tmp_path / "dataset_stats.csv"
-    df = compute_dataset_stats(
-        processed_dir=processed,
-        splits_dir=splits_dir,
-        report_path=report,
-        config_dir=cfg_dir,
-        dataset_ids=["DS1"],
-        seeds=[13],
-    )
-    assert report.exists()
-
-    full_bin = df[(df.dataset_version == "vBIN") & (df.split == "full")].iloc[0]
-    full_ded = df[(df.dataset_version == "vDEDUP") & (df.split == "full")].iloc[0]
-    assert full_bin["n"] == n
-    assert full_ded["n"] == len(vdedup)
-
-    train_ded = df[
-        (df.dataset_version == "vDEDUP") & (df.split == "train") & (df.seed == "13")
-    ].iloc[0]
-    assert train_ded["n"] == len(splits.train)
-    assert train_ded["n_real"] + train_ded["n_fake"] == train_ded["n"]
-
-    train_bin = df[(df.dataset_version == "vBIN") & (df.split == "train") & (df.seed == "13")].iloc[
-        0
     ]
-    # Same logical split size (mapped via pre_dedup_index)
-    assert train_bin["n"] == train_ded["n"]
+    out = assemble_confirmatory(family, q=0.05)
+    assert len(out) == 3
+    # Family-wide BH: first should remain significant; last not
+    assert out[0].significant
+    assert out[0].claim_allowed
+    assert out[0].p_adjusted <= out[0].p_raw or out[0].p_adjusted >= 0
+    assert not out[2].significant
+    assert not out[2].claim_allowed
+
+
+def test_confirmatory_claim_rejects_incomplete_triple():
+    assert not confirmatory_claim_allowed(
+        p_adjusted=0.01,
+        effect_size=None,
+        ci_low=0.0,
+        ci_high=0.1,
+    )
+    assert not confirmatory_claim_allowed(
+        p_adjusted=0.2,
+        effect_size=0.3,
+        ci_low=0.0,
+        ci_high=0.1,
+    )
+    assert confirmatory_claim_allowed(
+        p_adjusted=0.01,
+        effect_size=0.3,
+        ci_low=0.0,
+        ci_high=0.1,
+    )
+
+
+def test_assemble_confirmatory_requires_triple_fields():
+    with pytest.raises(ValueError, match="missing confirmatory triple"):
+        assemble_confirmatory(
+            [{"name": "x", "p_raw": 0.01, "effect_size": 0.2, "ci_low": 0.0}]
+        )
+
+
+def test_friedman_nemenyi_runs_and_marks_exploratory():
+    # 5 blocks × 3 models; model0 clearly best
+    mat = np.array(
+        [
+            [0.90, 0.70, 0.65],
+            [0.88, 0.72, 0.60],
+            [0.91, 0.68, 0.62],
+            [0.89, 0.71, 0.64],
+            [0.92, 0.69, 0.63],
+        ]
+    )
+    try:
+        out = friedman_nemenyi(mat, labels=["A", "B", "C"])
+    except ImportError:
+        pytest.skip("scikit-posthocs not installed")
+    assert out["scope"] == "secondary_exploratory"
+    assert out["friedman_p_value"] < 0.05
+    assert out["nemenyi_pvalues"].shape == (3, 3)

@@ -13,9 +13,10 @@ confirmatory_family:
   - "full-text vs source-only (RQ-B)"
 
 # --- Primary test: paired bootstrap on macro-F1 difference (§10) --------------
+# Defaults consumed by fnb.evaluation.stats.paired_bootstrap_diff.
 bootstrap:
   n_resamples: 10000             # [FROZEN]
-  stratified: true
+  stratified: true               # [FROZEN] resample within label strata
   ci: 0.95                       # 95% CI of the DIFFERENCE
   alternative: "two_sided"
   # The design's "non-overlapping marginal CIs" rule is REMOVED (§10).
@@ -29,12 +30,14 @@ effect_size:
   metric: "cliffs_delta"         # on per-seed macro-F1; report with every significant result
 
 # --- Multiplicity control (§10) -----------------------------------------------
+# BH-FDR is applied across the ENTIRE confirmatory family (not per-test).
 multiple_comparisons:
   method: "benjamini_hochberg_fdr"
   q: 0.05                        # [FROZEN] significant iff BH-adjusted p < 0.05
   applied_across: "entire confirmatory family"
 
 # --- Overall ranking (secondary / exploratory) (§10) --------------------------
+# Never used for a confirmatory verdict (R5/R6).
 ranking:
   omnibus: "friedman"
   post_hoc: "nemenyi"
