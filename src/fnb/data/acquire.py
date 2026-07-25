@@ -33,12 +33,37 @@ DEFAULT_HASHES_PATH = Path("data/SNAPSHOT_HASHES.txt")
 DEFAULT_MANIFEST_PATH = Path("results/kaggle_dataset_manifest.json")
 
 # Candidate mount-folder name fragments used when input_path is still TBD.
+# Keep these SPECIFIC — generic tokens like "fake"/"news" cause false matches.
 _NAME_HINTS: dict[str, list[str]] = {
-    "DS1": ["welfake", "fake-news-classification", "welfake-dataset"],
-    "DS2": ["isot", "fake-and-real-news", "fake-news-detection-isot"],
-    "DS3": ["fakenewsnet", "fake-news-net", "politifact", "gossipcop"],
-    "DS4": ["covid19-fake", "covid-19-fake", "covid-fake-news", "constraint"],
-    "DS5": ["liar", "liar-dataset", "liar-fake-news"],
+    "DS1": ["welfake", "fake-news-classification", "welfake_dataset", "welfake-dataset"],
+    "DS2": ["isot", "fake-and-real-news-dataset", "fake-and-real-news"],
+    "DS3": ["fakenewsnet", "fake-news-net", "politifact-gossipcop", "gossipcop"],
+    "DS4": ["covid19-fake-news", "covid-19-fake-news", "covid-fake-news", "constraint2020", "constraint-covid"],
+    "DS5": ["liar-dataset", "liar_dataset", "/liar/"],
+}
+
+# Tokens too generic to use for fuzzy path matching.
+_STOP_TOKENS = {
+    "fake",
+    "news",
+    "data",
+    "dataset",
+    "real",
+    "text",
+    "article",
+    "articles",
+    "classification",
+    "detection",
+    "short",
+    "statement",
+    "control",
+    "probe",
+    "domain",
+    "shift",
+    "target",
+    "transfer",
+    "primary",
+    "hard",
 }
 
 
@@ -223,15 +248,9 @@ def resolve_input_path(
     if explicit and explicit.lower() in by_name:
         return by_name[explicit.lower()]
 
-    # Fuzzy match on hints + dataset name tokens.
-    hints = list(_NAME_HINTS.get(dataset_id, []))
-    ds_name = str(entry.get("name") or "").lower()
-    hints.extend(
-        tok
-        for tok in ds_name.replace("(", " ").replace(")", " ").replace("+", " ").split()
-        if len(tok) > 3
-    )
-
+    # Fuzzy match ONLY on specific configured hints (never generic name tokens
+    # like "fake"/"news", which falsely map DS4 → ISOT).
+    hints = [h for h in _NAME_HINTS.get(dataset_id, []) if h and h.lower() not in _STOP_TOKENS]
     for attached_dir in attached:
         lowered = attached_dir.as_posix().lower()
         if any(h.lower() in lowered for h in hints):

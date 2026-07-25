@@ -143,6 +143,29 @@ def test_acquire_snapshots_writes_ledger_and_manifest(tmp_path: Path):
     assert snaps2[0].sha256 == snaps[0].sha256
 
 
+def test_ds4_does_not_falsely_match_isot(tmp_path: Path):
+    """Regression: generic 'fake'/'news' tokens must not map COVID → ISOT."""
+    isot = tmp_path / "datasets" / "clmentbisaillon" / "fake-and-real-news-dataset"
+    isot.mkdir(parents=True)
+    (isot / "True.csv").write_text("x", encoding="utf-8")
+    attached = list_input_datasets(tmp_path)
+    entry = {
+        "name": "COVID-19 Fake News",
+        "kaggle_slug": "TBD",
+        "input_dirname": "TBD",
+        "input_path": "TBD",
+    }
+    assert resolve_input_path("DS4", entry, tmp_path, attached) is None
+    # DS2 still resolves to ISOT via slug/dirname.
+    ds2_entry = {
+        "name": "ISOT",
+        "kaggle_slug": "clmentbisaillon/fake-and-real-news-dataset",
+        "input_dirname": "fake-and-real-news-dataset",
+        "input_path": "TBD",
+    }
+    assert resolve_input_path("DS2", ds2_entry, tmp_path, attached) == isot
+
+
 def test_write_snapshot_hashes_marks_missing(tmp_path: Path):
     path = tmp_path / "hashes.txt"
     snaps = [
