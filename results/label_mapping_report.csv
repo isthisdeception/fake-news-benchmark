@@ -1,0 +1,6 @@
+dataset_id,name,n_raw,n_kept,n_dropped_ambiguous,n_dropped_missing_label,n_real,n_fake,applied_mapping,label_source,notes
+DS1,WELFake,72134,72134,0,0,35028,37106,"source_binary_map→global {real=0, fake=1}: fake←[1, '1', 'fake']; real←[0, '0', 'real']",label,
+DS2,ISOT,44898,44898,0,0,21417,23481,"source_binary_map→global {real=0, fake=1}: fake←['fake']; real←['real']",filename-derived label_raw (real|fake),
+DS3,FakeNewsNet (PolitiFact+GossipCop),23196,23196,0,0,17441,5755,"source_binary_map→global {real=0, fake=1}: fake←['fake']; real←['real']",filename-derived label_raw (real|fake),
+DS4,COVID-19 Fake News,10700,10700,0,0,5600,5100,"source_binary_map→global {real=0, fake=1}: fake←['fake']; real←['real']",label,
+DS5,LIAR,12836,12836,0,0,7167,5669,"LIAR 6-way→binary (frozen §4.3): {pants-fire, false, barely-true}→fake=1; {half-true, mostly-true, true}→real=0",tsv column 'label' (6-way),
