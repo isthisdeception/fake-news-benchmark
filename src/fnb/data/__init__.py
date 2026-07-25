@@ -25,6 +25,7 @@ from .preprocess import (
     clean_text_neural,
     preprocess_all,
 )
+from .splits import SplitRunResult, create_all_splits, stratified_random_split
 
 __all__ = [
     "BinarizeResult",
@@ -32,12 +33,14 @@ __all__ = [
     "DedupResult",
     "MappingReportRow",
     "PreprocessResult",
+    "SplitRunResult",
     "acquire_snapshots",
     "binarize_all",
     "binarize_dataframe",
     "binarize_dataset",
     "clean_text_classical",
     "clean_text_neural",
+    "create_all_splits",
     "dedup_all",
     "dedup_dataframe",
     "discover_report",
@@ -46,4 +49,5 @@ __all__ = [
     "map_label",
     "preprocess_all",
     "resolve_input_path",
+    "stratified_random_split",
 ]

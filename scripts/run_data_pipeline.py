@@ -8,6 +8,7 @@ Examples:
     python scripts/run_data_pipeline.py --stage P1a
     python scripts/run_data_pipeline.py --stage P1b
     python scripts/run_data_pipeline.py --stage P2
+    python scripts/run_data_pipeline.py --stage P3
     python scripts/run_data_pipeline.py --stage all
 """
 
@@ -69,6 +70,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--dedup-report-path",
         default="results/dedup_counts.csv",
         help="Where to write the EXP-P2 within-dataset dedup counts CSV.",
+    )
+    parser.add_argument(
+        "--splits-dir",
+        default="data/splits",
+        help="Directory for EXP-P3 split index files (*.idx).",
+    )
+    parser.add_argument(
+        "--split-applicability-path",
+        default="results/split_applicability.csv",
+        help="Where to write S-SRC / S-TEMP applicability notes.",
     )
     parser.add_argument(
         "--discover",
@@ -186,6 +197,23 @@ def _run_p2(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_p3(args: argparse.Namespace) -> int:
+    from fnb.data.splits import create_all_splits
+
+    results, applicability = create_all_splits(
+        processed_dir=args.output_dir,
+        splits_dir=args.splits_dir,
+        applicability_path=args.split_applicability_path,
+        config_dir=args.config_dir,
+        dataset_ids=args.datasets,
+    )
+    print(f"Wrote {len(results)} regime×seed split sets → {args.splits_dir}")
+    for a in applicability:
+        print(f"  {a.dataset_id} {a.regime}: {a.status} — {a.note}")
+    print(f"\nWrote: {args.split_applicability_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     args = build_parser().parse_args(argv)
@@ -218,12 +246,19 @@ def main(argv: list[str] | None = None) -> int:
         if rc != 0:
             return rc
 
-    remaining = STAGES[4:] if args.stage == "all" else [args.stage]
+    if args.stage in ("P3", "all"):
+        rc = _run_p3(args)
+        if args.stage == "P3":
+            return rc
+        if rc != 0:
+            return rc
+
+    remaining = STAGES[5:] if args.stage == "all" else [args.stage]
     for stage in remaining:
-        if stage in ("P0", "P1a", "P1b", "P2"):
+        if stage in ("P0", "P1a", "P1b", "P2", "P3"):
             continue
         raise NotImplementedError(
-            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S9)."
+            f"Data pipeline stage '{stage}' is not implemented yet (Milestone 2, steps after S10)."
         )
     return 0
 
